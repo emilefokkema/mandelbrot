@@ -141,6 +141,32 @@
 		};
 		todo();
 	};
+
+	var storage = (function(){
+		var read = function(){
+			var match = window.location.hash.match(/^#(\d+(?:\.\d+)?),(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
+			if(match){
+				return {
+					orX : parseFloat(match[1]),
+					orY : parseFloat(match[2]),
+					Xwidth : parseFloat(match[3])
+				};
+			}else{
+				return {
+					orX: 0,
+					orY :0,
+					Xwidth : 4
+				};
+			}
+		};
+		var write = function(orX, orY, Xwidth){
+			window.location.hash = "#" + orX + "," + orY + "," + Xwidth;
+		};
+		return {
+			read:read,
+			write:write
+		};
+	})();
 	
 	var field = (function(){
 		var canvas = document.createElement('canvas');
@@ -152,6 +178,7 @@
 		var setBoundaries = function(orX, orY, Xwidth){
 			stopDrawing();
 			coordinates.set(orX, orY, Xwidth);
+			storage.write(orX, orY, Xwidth);
 			stopDrawing = draw();
 		};
 		var coordinates = (function(w,h){
@@ -234,7 +261,8 @@
 			return result;
 		};
 		squares = getSquares(0, width, 0, height, 20);
-		setBoundaries(0,0,4);
+		var whereWeAre = storage.read();
+		setBoundaries(whereWeAre.orX, whereWeAre.orY, whereWeAre.Xwidth);
 		
 	})();
 })(document.body);
