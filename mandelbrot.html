@@ -144,7 +144,7 @@
 
 	var storage = (function(){
 		var read = function(){
-			var match = window.location.hash.match(/^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(\d+(?:\.\d+)?)$/);
+			var match = window.location.hash.match(/^#(-?\d+(?:\.\d+)?(?:e-?\d+)?),(-?\d+(?:\.\d+)?(?:e-?\d+)?),(\d+(?:\.\d+)?(?:e-?\d+)?)$/);
 			if(match){
 				return {
 					orX : parseFloat(match[1]),
