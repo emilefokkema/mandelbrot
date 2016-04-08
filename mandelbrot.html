@@ -126,13 +126,16 @@
 		};
 	})();
 		
-	var doSequentially = function(nextToDo, batchSize, whetherToContinue){
+	var doSequentially = function(nextToDo, batchSize, whetherToContinue, doneCallback){
 		var next;
 		var todo = function(){
 			if(whetherToContinue()){
 				var batchCounter = 0;
 				while(batchCounter++ <= batchSize && (next = nextToDo())){
 					next();
+				}
+				if(!next && doneCallback){
+					doneCallback();
 				}
 				if(whetherToContinue() && next){
 					setTimeout(todo,1);
@@ -179,15 +182,18 @@
 		
 		var draw = function(){
 			var drawing = true;
-			var squaresInRow = squares.reduce(function(a,b){return a.concat(b);});
-			squaresInRow.map(function(s){s.draw();});
-			var functions = squares.map(function(r){return r.map(function(rr){return rr.drawDetailed;});});
-			var iterator = makeSpiralIterator(functions, Math.floor(squares.length/2), Math.floor(squares[0].length/2));
-			doSequentially(
-				iterator,
-				30,
-				function(){return drawing;}
-			);
+			var whetherToContinue = function(){return drawing;};
+			var squaresDraw = squares.map(function(r){return r.map(function(rr){return rr.draw;});});
+			doSequentially(makeSpiralIterator(squaresDraw, Math.floor(squares.length/2), Math.floor(squares[0].length/2)), 10, whetherToContinue, function(){
+				var functions = squares.map(function(r){return r.map(function(rr){return rr.drawDetailed;});});
+				var iterator = makeSpiralIterator(functions, Math.floor(squares.length/2), Math.floor(squares[0].length/2));
+				doSequentially(
+					iterator,
+					30,
+					whetherToContinue
+				);
+			});
+			
 			return function(){drawing = false;};
 		};
 
