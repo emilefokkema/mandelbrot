@@ -110,12 +110,8 @@
 						console.log("klaar met spiraal");
 						return;
 					}
-					var whileCounter = 0;
-					while(!indexRectangle.contains((index = spiral.next())) && going && whileCounter++<4000){
-						console.log("overslaan", count, maxCount);
-						if(whileCounter == 4000){
-							console.log("nee");
-						}
+					while(!indexRectangle.contains((index = spiral.next())) && going){
+						
 
 					}
 					count ++;
@@ -184,7 +180,7 @@
 			var drawing = true;
 			var whetherToContinue = function(){return drawing;};
 			var squaresDraw = squares.map(function(r){return r.map(function(rr){return rr.draw;});});
-			doSequentially(makeSpiralIterator(squaresDraw, Math.floor(squares.length/2), Math.floor(squares[0].length/2)), 10, whetherToContinue, function(){
+			doSequentially(makeSpiralIterator(squaresDraw, Math.floor(squares.length/2), Math.floor(squares[0].length/2)), 20, whetherToContinue, function(){
 				var functions = squares.map(function(r){return r.map(function(rr){return rr.drawDetailed;});});
 				var iterator = makeSpiralIterator(functions, Math.floor(squares.length/2), Math.floor(squares[0].length/2));
 				doSequentially(
