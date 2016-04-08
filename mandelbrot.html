@@ -142,8 +142,7 @@
 		};
 		todo();
 	};
-	console.log(escapeStep(100, 0, 0));
-    console.log("wtf");
+	
 	var field = (function(){
 		var canvas = document.createElement('canvas');
 		var squares,width = body.offsetWidth, height = body.offsetHeight, stopDrawing = function(){};
@@ -154,7 +153,6 @@
 		var setBoundaries = function(orX, orY, Xwidth){
 			stopDrawing();
 			coordinates.set(orX, orY, Xwidth);
-			//canvas.width = canvas.width;
 			stopDrawing = draw();
 		};
 		var coordinates = (function(w,h){
@@ -233,7 +231,7 @@
 			}
 			return result;
 		};
-		squares = getSquares(0, width, 0, height, 40);
+		squares = getSquares(0, width, 0, height, 20);
 		setBoundaries(0,0,4);
 		
 	})();
