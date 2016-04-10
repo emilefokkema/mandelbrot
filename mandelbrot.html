@@ -240,7 +240,7 @@
 					context.fillRect(x, y, size, size);
 				}else{
 					var normalizedStep = esc.step + 1 - Math.log(Math.log(Math.sqrt(esc.modsq))) / Math.log(2);
-					context.fillStyle = 'hsl('+normalizedStep*2+',50%,50%)';
+					context.fillStyle = 'hsl('+normalizedStep*2+',50%,'+50 * (1 + Math.sin(normalizedStep / 20))+'%)';
 					context.fillRect(x, y, size, size);
 				}
 			};
