@@ -7,6 +7,30 @@
 <body style="margin:0px;padding:0px"></body>
 <script>
 (function(body){
+	var clickManager = (function(){
+		var cutOffs = [];
+		var timeWindow = function(element, duration, handler){
+			var down;
+			cutOffs.push(duration);
+			element.addEventListener('mousedown',function(){down = new Date();});
+			element.addEventListener('mouseup',function(e){
+				var diff = new Date() - down;
+				if(diff < duration && !cutOffs.some(function(c){return c < duration && diff < c;})){
+					handler(e, diff);
+				}
+			});
+		};
+		var onShort = function(element, handler){
+			timeWindow(element, 200, handler);
+		};
+		var onLong = function(element, handler){
+			timeWindow(element, 1000, handler);
+		};
+		return {
+			onShort: onShort,
+			onLong: onLong
+		};
+	})();
 	var Complex = function(x,y){
 		this.x = x;
 		this.y = y;
@@ -224,12 +248,15 @@
 			return function(){drawing = false;};
 		};
 
-		canvas.onclick = function(e){
+		clickManager.onShort(canvas, function(e){
 			var x = e.clientX, y = e.clientY;
 			var zoomFactor = Math.min.apply(null, [x, x - width, y, y - height].map(Math.abs)) < 50 ? 2 : 0.5;
 			var coords = zoomFactor < 1 ? coordinates.getFromScreenXY(x, y) : coordinates.getFromScreenXY(width/2, height/2);
 			setBoundaries(coords.x, coords.y, coordinates.getWidth() * zoomFactor);
-		};
+		});
+		clickManager.onLong(canvas, function(e, diff){
+			alert("long one!", diff);
+		});
 		var square = function(x,y,size){
 			var coords;
 			var draw = function(){
