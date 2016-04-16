@@ -7,46 +7,6 @@
 <body style="margin:0px;padding:0px"></body>
 <script>
 (function(body){
-	var clickManager = (function(){
-		
-		var timeWindow = function(element, minDuration, maxDuration, handler){
-			var open;
-			element.addEventListener('mousedown',function(){
-				if(minDuration > 0){
-					setTimeout(function(){
-						open = true;
-					}, minDuration);
-				}else{
-					open = true;
-				}
-				setTimeout(function(){
-					open = false;
-				}, maxDuration);
-			});
-			element.addEventListener('mouseup',function(e){
-				if(open){
-					handler(e);
-				}
-				open = false;
-			});
-		};
-		var onShort = function(element, handler){
-			timeWindow(element, 0, 200, function(e){
-				alert("short one");
-				handler(e);
-			});
-		};
-		var onLong = function(element, handler){
-			timeWindow(element, 200, 1000, function(e){
-				alert("long one");
-				handler(e);
-			});
-		};
-		return {
-			onShort: onShort,
-			onLong: onLong
-		};
-	})();
 	var Complex = function(x,y){
 		this.x = x;
 		this.y = y;
@@ -268,7 +228,7 @@
 		};
 		var clickNormal = function(e){
 			var x = e.clientX, y = e.clientY;
-			var zoomFactor = isNearEdge(x,y) < 50 ? 2 : 0.5;
+			var zoomFactor = isNearEdge(x,y) ? 2 : 0.5;
 			var coords = zoomFactor < 1 ? coordinates.getFromScreenXY(x, y) : coordinates.getFromScreenXY(width/2, height/2);
 			setBoundaries(coords.x, coords.y, coordinates.getWidth() * zoomFactor);
 		};
