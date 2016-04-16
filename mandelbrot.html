@@ -8,27 +8,39 @@
 <script>
 (function(body){
 	var clickManager = (function(){
-		var cutOffs = [];
-		var timeWindow = function(element, duration, handler){
-			var down;
-			cutOffs.push(duration);
-			element.addEventListener('mousedown',function(e){
-				if(e.targetTouches){return;}
-				down = new Date();
+		
+		var timeWindow = function(element, minDuration, maxDuration, handler){
+			var open;
+			element.addEventListener('mousedown',function(){
+				if(minDuration > 0){
+					setTimeout(function(){
+						open = true;
+					}, minDuration);
+				}else{
+					open = true;
+				}
+				setTimeout(function(){
+					open = false;
+				}, maxDuration);
 			});
 			element.addEventListener('mouseup',function(e){
-				if(e.targetTouches){return;}
-				var diff = new Date() - down;
-				if(diff < duration && !cutOffs.some(function(c){return c < duration && diff < c;})){
-					handler(e, diff);
+				if(open){
+					handler(e);
 				}
+				open = false;
 			});
 		};
 		var onShort = function(element, handler){
-			timeWindow(element, 200, handler);
+			timeWindow(element, 0, 200, function(e){
+				console.log("short one");
+				handler(e);
+			});
 		};
 		var onLong = function(element, handler){
-			timeWindow(element, 1000, handler);
+			timeWindow(element, 200, 1000, function(e){
+				console.log("long one");
+				handler(e);
+			});
 		};
 		return {
 			onShort: onShort,
@@ -253,14 +265,13 @@
 		};
 
 		clickManager.onShort(canvas, function(e, diff){
-			alert("short one "+diff);
 			var x = e.clientX, y = e.clientY;
 			var zoomFactor = Math.min.apply(null, [x, x - width, y, y - height].map(Math.abs)) < 50 ? 2 : 0.5;
 			var coords = zoomFactor < 1 ? coordinates.getFromScreenXY(x, y) : coordinates.getFromScreenXY(width/2, height/2);
 			setBoundaries(coords.x, coords.y, coordinates.getWidth() * zoomFactor);
 		});
 		clickManager.onLong(canvas, function(e, diff){
-			alert("long one, "+diff);
+			alert("long one");
 		});
 		var square = function(x,y,size){
 			var coords;
