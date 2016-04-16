@@ -12,8 +12,12 @@
 		var timeWindow = function(element, duration, handler){
 			var down;
 			cutOffs.push(duration);
-			element.addEventListener('mousedown',function(){down = new Date();});
+			element.addEventListener('mousedown',function(e){
+				if(e.targetTouches){return;}
+				down = new Date();
+			});
 			element.addEventListener('mouseup',function(e){
+				if(e.targetTouches){return;}
 				var diff = new Date() - down;
 				if(diff < duration && !cutOffs.some(function(c){return c < duration && diff < c;})){
 					handler(e, diff);
