@@ -32,13 +32,13 @@
 		};
 		var onShort = function(element, handler){
 			timeWindow(element, 0, 200, function(e){
-				console.log("short one");
+				alert("short one");
 				handler(e);
 			});
 		};
 		var onLong = function(element, handler){
 			timeWindow(element, 200, 1000, function(e){
-				console.log("long one");
+				alert("long one");
 				handler(e);
 			});
 		};
