@@ -174,6 +174,25 @@
 		};
 	})();
 
+	var colorSchemes = [
+		{
+			lightness: function(normalizedStep){
+				return 50 * (1 + Math.sin(normalizedStep / 20));
+			},
+			hue: function(normalizedStep){
+				return normalizedStep*2;
+			}
+		},
+		{
+			lightness: function(normalizedStep){
+				return 50 * (1 + Math.sin(normalizedStep / 20));
+			},
+			hue: function(normalizedStep){
+				return 2*normalizedStep - Math.pow(normalizedStep, 2) / 100;
+			}
+		}
+	];
+
 	var field = (function(){
 		var canvas = document.createElement('canvas');
 		var squares,width = body.offsetWidth, height = body.offsetHeight, drawing = {stop:function(){},resume:function(){}};
@@ -185,6 +204,10 @@
 			drawing.stop();
 			coordinates.set(orX, orY, Xwidth);
 			storage.write(orX, orY, Xwidth);
+			drawing = draw();
+		};
+		var redraw = function(){
+			drawing.stop();
 			drawing = draw();
 		};
 		var coordinates = (function(w,h){
@@ -244,9 +267,10 @@
 		};
 		var clickOther = function(){
 			drawing.stop();
-			contextMenu.appear(function(){
+			contextMenu.appear(function(chosenToDo){
 				setTimeout(function(){
 					drawing.resume();
+					(chosenToDo || function(){})();
 				},300)
 			});
 		};
@@ -257,17 +281,18 @@
 				clickOther();
 			}
 		});
+		var colorScheme = colorSchemes[0];
 		var square = function(x,y,size){
 			var coords;
 			var draw = function(){
 				coords = coordinates.getFromScreenXY(x,y);
-				var esc = escapeStep(2000,coords.x,coords.y);
+				var esc = escapeStep(4000,coords.x,coords.y);
 				if(esc.modsq < 4){
 					context.fillStyle = '#000';
 					context.fillRect(x, y, size, size);
 				}else{
 					var normalizedStep = esc.step + 1 - Math.log(Math.log(Math.sqrt(esc.modsq)))/ Math.log(2);
-					context.fillStyle = 'hsl('+normalizedStep*2+',50%,'+50 * (1 + Math.sin(normalizedStep / 20))+'%)';
+					context.fillStyle = 'hsl('+colorScheme.hue(normalizedStep)+',50%,'+colorScheme.lightness(normalizedStep)+'%)';
 					context.fillRect(x, y, size, size);
 				}
 			};
@@ -294,27 +319,84 @@
 		squares = getSquares(0, width, 0, height, 20);
 		var whereWeAre = storage.read();
 		setBoundaries(whereWeAre.orX, whereWeAre.orY, whereWeAre.Xwidth);
-		
+		var setColorScheme = function(s){
+			if(s == colorScheme){return;}
+			colorScheme = s;
+			redraw();
+		};
+		return {
+			setBoundaries: setBoundaries,
+			setColorScheme: setColorScheme
+		};
 	})();
 	var contextMenu = (function(){
 		var upTop = -body.offsetHeight * 0.9;
 		var downTop = body.offsetHeight * 0.05;
 		var left = body.offsetWidth * 0.05;
 		var onClose = function(){};
+		var makeColorSchemePicture = function(scheme){
+			var canvas = document.createElement('canvas');
+			canvas.width = 300;
+			canvas.height = 50;
+			var context = canvas.getContext('2d');
+			for(var i=0;i<300;i++){
+				context.fillStyle = 'hsl('+scheme.hue(i)+',50%,'+scheme.lightness(i)+'%)';
+				context.fillRect(i,0,1,50);
+			}
+			return canvas;
+		};
 		return makeNode(
-			"<div id='1' style='position:absolute;left:"+left+"px;top:"+upTop+"px;transition-property:top;transition-duration:0.3s;background-color:#eee;width:90%;height:90%'>"+
-				"<input id='2' type='button' value='x'>" +
+			"<div id='1' style='position:absolute;left:"+left+"px;top:"+upTop+"px;transition-property:top;transition-duration:0.1s;background-color:#eee;width:90%;height:90%'>"+
+				"<input id='2' type='button' value='x' />" +
+				"<input id='3' type='button' value='reset'/>" +
+				"<div id='4'></div>" +
 			"</div>",
-			function(div, close){
+			function(div, close, reset, schemes){
 				body.appendChild(div);
 				var appear = function(){
 					div.style.top = downTop + "px";
 				};
-				var disappear = function(){
+				var disappear = function(chosenToDo){
 					div.style.top = upTop + "px";
-					onClose();
+					onClose(chosenToDo);
 				};
-				close.onclick = disappear;
+				close.onclick = function(){
+					disappear();
+				};
+				reset.onclick = function(){
+					disappear(function(){
+						field.setBoundaries(0,0,4);
+					});
+				};
+				var colorSchemeOptions = (function(){
+					var select = function(i){
+						all.map(function(o,j){
+							o.makeActive(i == j);
+						});
+						disappear(function(){
+							field.setColorScheme(colorSchemes[i]);
+						});
+					};
+					var all = colorSchemes.map(function(scheme, i){
+						return makeNode(
+							"<div id='1'></div>",
+							function(div){
+								div.appendChild(makeColorSchemePicture(scheme));
+								var makeActive = function(bool){
+									div.style.backgroundColor = bool ? "#aaa" : "";
+								};
+								div.onclick = function(){select(i);};
+								return {
+									node:div,
+									makeActive:makeActive
+								};
+							}
+						);
+					});
+					all.map(function(o){schemes.appendChild(o.node);});
+					select(0);
+				})();
+				
 				return {
 					appear:function(f){onClose = f;appear();}
 				};
