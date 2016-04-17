@@ -5,6 +5,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 </head>
 <body style="margin:0px;padding:0px"></body>
+<script src="../sudoku/makeNode.js"></script>
 <script>
 (function(body){
 	var Complex = function(x,y){
@@ -131,7 +132,7 @@
 		var todo = function(){
 			if(whetherToContinue()){
 				var batchCounter = 0;
-				while(batchCounter++ <= batchSize && (next = nextToDo())){
+				while(whetherToContinue() && batchCounter++ <= batchSize && (next = nextToDo())){
 					next();
 				}
 				if(!next && doneCallback){
@@ -144,6 +145,7 @@
 			
 		};
 		todo();
+		return todo;
 	};
 
 	var storage = (function(){
@@ -171,19 +173,19 @@
 			write:write
 		};
 	})();
-	
+
 	var field = (function(){
 		var canvas = document.createElement('canvas');
-		var squares,width = body.offsetWidth, height = body.offsetHeight, stopDrawing = function(){};
+		var squares,width = body.offsetWidth, height = body.offsetHeight, drawing = {stop:function(){},resume:function(){}};
 		canvas.setAttribute('width', width);
 		canvas.setAttribute('height', height);
 		body.appendChild(canvas);
 		var context = canvas.getContext('2d');
 		var setBoundaries = function(orX, orY, Xwidth){
-			stopDrawing();
+			drawing.stop();
 			coordinates.set(orX, orY, Xwidth);
 			storage.write(orX, orY, Xwidth);
-			stopDrawing = draw();
+			drawing = draw();
 		};
 		var coordinates = (function(w,h){
 			var minx,maxx,miny,maxy;
@@ -211,17 +213,25 @@
 			var drawing = true;
 			var whetherToContinue = function(){return drawing;};
 			var squaresDraw = squares.map(function(r){return r.map(function(rr){return rr.draw;});});
-			doSequentially(makeSpiralIterator(squaresDraw, Math.floor(squares.length/2), Math.floor(squares[0].length/2)), 20, whetherToContinue, function(){
-				var functions = squares.map(function(r){return r.map(function(rr){return rr.drawDetailed;});});
-				var iterator = makeSpiralIterator(functions, Math.floor(squares.length/2), Math.floor(squares[0].length/2));
-				doSequentially(
-					iterator,
-					30,
-					whetherToContinue
-				);
-			});
-			
-			return function(){drawing = false;};
+			var resume;
+			resume = doSequentially(
+				makeSpiralIterator(squaresDraw, Math.floor(squares.length/2), Math.floor(squares[0].length/2)),
+				20,
+				whetherToContinue,
+				function(){
+					var functions = squares.map(function(r){return r.map(function(rr){return rr.drawDetailed;});});
+					var iterator = makeSpiralIterator(functions, Math.floor(squares.length/2), Math.floor(squares[0].length/2));
+					resume = doSequentially(
+						iterator,
+						30,
+						whetherToContinue
+					);
+				}
+			);
+			return {
+				stop: function(){drawing = false;},
+				resume: function(){drawing = true;resume();}
+			};
 		};
 		var isNearEdge = function(x,y){
 			return Math.min.apply(null, [x, x - width, y, y - height].map(Math.abs)) < 50;
@@ -233,7 +243,12 @@
 			setBoundaries(coords.x, coords.y, coordinates.getWidth() * zoomFactor);
 		};
 		var clickOther = function(){
-			alert("long one");
+			drawing.stop();
+			contextMenu.appear(function(){
+				setTimeout(function(){
+					drawing.resume();
+				},300)
+			});
 		};
 		canvas.addEventListener('click', clickNormal);
 		canvas.addEventListener('contextmenu',function(e){
@@ -280,6 +295,30 @@
 		var whereWeAre = storage.read();
 		setBoundaries(whereWeAre.orX, whereWeAre.orY, whereWeAre.Xwidth);
 		
+	})();
+	var contextMenu = (function(){
+		var upTop = -body.offsetHeight * 0.9;
+		var downTop = body.offsetHeight * 0.05;
+		var left = body.offsetWidth * 0.05;
+		var onClose = function(){};
+		return makeNode(
+			"<div id='1' style='position:absolute;left:"+left+"px;top:"+upTop+"px;transition-property:top;transition-duration:0.3s;background-color:#eee;width:90%;height:90%'>"+
+				"<div id='2' style='position:absolute;right:10px;top:10px'>x</div>" +
+			"</div>",
+			function(div, close){
+				body.appendChild(div);
+				var appear = function(){
+					div.style.top = downTop + "px";
+				};
+				var disappear = function(){
+					div.style.top = upTop + "px";
+					onClose();
+				};
+				close.onclick = disappear;
+				return {
+					appear:function(f){onClose = f;appear();}
+				};
+			});
 	})();
 })(document.body);
 </script>
