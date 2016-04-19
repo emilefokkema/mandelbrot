@@ -190,6 +190,14 @@
 			hue: function(normalizedStep){
 				return 2*normalizedStep - Math.pow(normalizedStep, 2) / 100;
 			}
+		},
+		{
+			lightness:function(n){
+				return 50 * (1 + 0.75 * Math.sin(n / 10));
+			},
+			hue: function(n){
+				return 120 * Math.sin(n / 20);
+			}
 		}
 	];
 
