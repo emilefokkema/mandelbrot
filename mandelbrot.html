@@ -8,26 +8,18 @@
 <script src="../sudoku/makeNode.js"></script>
 <script>
 (function(body){
-	var Complex = function(x,y){
-		this.x = x;
-		this.y = y;
-	};
-	Complex.prototype.plus = function(c){
-		return new Complex(this.x + c.x, this.y + c.y);
-	};
-	Complex.prototype.square = function(){
-		return new Complex(Math.pow(this.x, 2) - Math.pow(this.y, 2), 2* this.x * this.y);
-	};
-	Complex.prototype.modSq = function(){
-		return Math.pow(this.x, 2) + Math.pow(this.y, 2);
-	};
-	var escapeStep = function(maxIt,x,y){
-		var z = new Complex(0,0), c = new Complex(x,y), step = 0;
-		while((z = z.square().plus(c)).modSq() < 4 && step++ < maxIt){
-
+	
+	
+	var escapeStep = function(maxIt, x, y){
+		var zrn, zin, zr = 0, zi = 0, cr = x, ci = y, step = 0, modsq = 0;
+		while(modsq < 4 && step++ < maxIt){
+			zrn = zr * zr - zi * zi + cr;
+			zin = 2 * zr * zi + ci;
+			zr = zrn;
+			zi = zin;
+			modsq = zr * zr + zi * zi;
 		}
-		var modsq = z.modSq();
-		
+
 		return {modsq:modsq, step:step};
 	};
 	var makeIterator = function(arr){
@@ -247,7 +239,7 @@
 			var resume;
 			resume = doSequentially(
 				makeSpiralIterator(squaresDraw, Math.floor(squares.length/2), Math.floor(squares[0].length/2)),
-				20,
+				200,
 				whetherToContinue,
 				function(){
 					var functions = squares.map(function(r){return r.map(function(rr){return rr.drawDetailed;});});
@@ -299,7 +291,7 @@
 					context.fillStyle = '#000';
 					context.fillRect(x, y, size, size);
 				}else{
-					var normalizedStep = esc.step + 1 - Math.log(Math.log(Math.sqrt(esc.modsq)))/ Math.log(2);
+					var normalizedStep = esc.step + 1 - Math.log(Math.log(Math.sqrt(esc.modsq))) * 1.4426950408889634;
 					context.fillStyle = 'hsl('+colorScheme.hue(normalizedStep)+',50%,'+colorScheme.lightness(normalizedStep)+'%)';
 					context.fillRect(x, y, size, size);
 				}
@@ -324,7 +316,7 @@
 			}
 			return result;
 		};
-		squares = getSquares(0, width, 0, height, 20);
+		squares = getSquares(0, width, 0, height, 10);
 		var whereWeAre = storage.read();
 		setBoundaries(whereWeAre.orX, whereWeAre.orY, whereWeAre.Xwidth);
 		var setColorScheme = function(s){
