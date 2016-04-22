@@ -5,7 +5,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 </head>
 <body style="margin:0px;padding:0px"></body>
-<div id="cross" style="position:absolute;right:3px;top:3px;width:20px;height:20px;background-image:url(&quot;data:image/svg+xml;utf8,<svg width=\&quot;20\&quot; height=\&quot;20\&quot; xmlns=\&quot;http://www.w3.org/2000/svg\&quot;><path d=\&quot;M15.65685424949238 18.485281374238568 L 18.48528137423857 15.65685424949238 L 12.828427124746192 10 L 18.48528137423857 4.34314575050762 L 15.65685424949238 1.5147186257614305 L 10.000000000000002 7.17157287525381 L 4.343145750507619 1.5147186257614305 L 1.5147186257614287 4.34314575050762 L 7.171572875253809 10 L 1.5147186257614287 15.65685424949238 L 4.343145750507619 18.485281374238568 L 9.999999999999998 12.82842712474619 L 15.65685424949238 18.485281374238568 Z\&quot; fill=\&quot;transparent\&quot; stroke=\&quot;black\&quot;></path></svg>&quot;);"></div>
+<div id="cross" style="width:100%;height:20px;background-image:url(&quot;data:image/svg+xml;utf8,<svg width=\&quot;20\&quot; height=\&quot;20\&quot; xmlns=\&quot;http://www.w3.org/2000/svg\&quot;><path d=\&quot;M15.65685424949238 18.485281374238568 L 18.48528137423857 15.65685424949238 L 12.828427124746192 10 L 18.48528137423857 4.34314575050762 L 15.65685424949238 1.5147186257614305 L 10.000000000000002 7.17157287525381 L 4.343145750507619 1.5147186257614305 L 1.5147186257614287 4.34314575050762 L 7.171572875253809 10 L 1.5147186257614287 15.65685424949238 L 4.343145750507619 18.485281374238568 L 9.999999999999998 12.82842712474619 L 15.65685424949238 18.485281374238568 Z\&quot; fill=\&quot;black\&quot;></path></svg>&quot;);background-repeat:no-repeat"></div>
 <script src="../sudoku/makeNode.js"></script>
 <script>
 (function(body){
@@ -348,12 +348,13 @@
 		};
 		return makeNode(
 			"<div id='1' style='position:absolute;left:"+left+"px;top:"+upTop+"px;transition-property:top;transition-duration:0.1s;background-color:#eee;width:90%;height:90%'>"+
+				"<div id='5' style='position:relative;padding:3px'></div>" +
 				"<input id='2' type='button' value='x' />" +
 				"<input id='3' type='button' value='reset'/>" +
 				"<div id='4'></div>" +
 			"</div>",
-			function(div, close, reset, schemes){
-				div.appendChild(document.getElementById('cross'));
+			function(div, close, reset, schemes, header){
+				header.appendChild(document.getElementById('cross'));
 				body.appendChild(div);
 				var appear = function(){
 					div.style.top = downTop + "px";
