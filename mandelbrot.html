@@ -3,9 +3,36 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
+<style>
+.context-menu-button {
+	width:40px;
+	height: 40px;
+	border: 1pt solid #000;
+	margin: 10px;
+	cursor: pointer;
+}
+.cross {
+	height: 20px;
+	width: 20px;
+	cursor: pointer;
+	background-image: url("data:image/svg+xml;utf8,<svg width=\"20\" height=\"20\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M15.65685424949238 18.485281374238568 L 18.48528137423857 15.65685424949238 L 12.828427124746192 10 L 18.48528137423857 4.34314575050762 L 15.65685424949238 1.5147186257614305 L 10.000000000000002 7.17157287525381 L 4.343145750507619 1.5147186257614305 L 1.5147186257614287 4.34314575050762 L 7.171572875253809 10 L 1.5147186257614287 15.65685424949238 L 4.343145750507619 18.485281374238568 L 9.999999999999998 12.82842712474619 L 15.65685424949238 18.485281374238568 Z\" fill=\"black\"></path></svg>");
+
+}
+.left {
+	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M17.701902961143723 6.741747852752233 L 4.443650813895955 20 L 17.70190296114372 33.25825214724777 L 19.82322330470336 31.136931803688125 L 10.186291501015239 21.5 L 32.37563132923542 21.5 L 32.37563132923542 18.5 L 10.186291501015244 18.5 L 19.823223304703365 8.863068196311875 L 17.701902961143723 6.741747852752233 Z\" fill=\"black\"></path></svg>");
+}
+.up {
+	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M33.25825214724777 17.70190296114372 L 20 4.443650813895955 L 6.741747852752233 17.701902961143723 L 8.863068196311875 19.823223304703365 L 18.5 10.18629150101524 L 18.5 32.37563132923542 L 21.500000000000004 32.37563132923542 L 21.499999999999996 10.186291501015244 L 31.136931803688125 19.82322330470336 L 33.25825214724777 17.70190296114372 Z\" fill=\"black\"></path></svg>");
+}
+.down {
+	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6.741747852752233 22.29809703885628 L 20.000000000000004 35.55634918610404 L 33.25825214724777 22.298097038856277 L 31.136931803688125 20.176776695296635 L 21.5 29.81370849898476 L 21.499999999999996 7.624368670764584 L 18.499999999999996 7.624368670764582 L 18.500000000000004 29.81370849898476 L 8.863068196311875 20.17677669529664 L 6.741747852752233 22.29809703885628 Z\" fill=\"black\"></path></svg>");
+}
+.right {
+	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M22.29809703885628 33.25825214724777 L 35.55634918610404 20 L 22.298097038856277 6.741747852752233 L 20.176776695296635 8.863068196311875 L 29.81370849898476 18.5 L 7.624368670764586 18.5 L 7.624368670764582 21.500000000000004 L 29.813708498984756 21.499999999999996 L 20.17677669529664 31.136931803688125 L 22.29809703885628 33.25825214724777 Z\" fill=\"black\"></path></svg>");
+}
+</style>
 </head>
 <body style="margin:0px;padding:0px"></body>
-<div id="cross" style="width:100%;height:20px;background-image:url(&quot;data:image/svg+xml;utf8,<svg width=\&quot;20\&quot; height=\&quot;20\&quot; xmlns=\&quot;http://www.w3.org/2000/svg\&quot;><path d=\&quot;M15.65685424949238 18.485281374238568 L 18.48528137423857 15.65685424949238 L 12.828427124746192 10 L 18.48528137423857 4.34314575050762 L 15.65685424949238 1.5147186257614305 L 10.000000000000002 7.17157287525381 L 4.343145750507619 1.5147186257614305 L 1.5147186257614287 4.34314575050762 L 7.171572875253809 10 L 1.5147186257614287 15.65685424949238 L 4.343145750507619 18.485281374238568 L 9.999999999999998 12.82842712474619 L 15.65685424949238 18.485281374238568 Z\&quot; fill=\&quot;black\&quot;></path></svg>&quot;);background-repeat:no-repeat"></div>
 <script src="../sudoku/makeNode.js"></script>
 <script>
 (function(body){
@@ -212,13 +239,15 @@
 			drawing = draw();
 		};
 		var coordinates = (function(w,h){
-			var minx,maxx,miny,maxy;
+			var orX, orY, minx,maxx,miny,maxy;
 			var getFromScreenXY = function(x,y){
 				var cx = minx + (x / w) * (maxx - minx);
 				var cy = maxy - (y / h) * (maxy - miny);
 				return {x:cx,y:cy};
 			};
-			var set = function(orX, orY, Xwidth){
+			var set = function(orX_, orY_, Xwidth){
+				orX = orX_;
+				orY = orY_;
 				minx = orX - Xwidth / 2;
 				maxx = orX + Xwidth / 2;
 				var Ywidth = Xwidth * (h / w);
@@ -226,10 +255,14 @@
 				maxy = orY + Ywidth / 2;
 			};
 			var getWidth = function(){return maxx - minx;};
+			var getHeight = function(){return maxy - miny;};
+			var getOrigin = function(){return {x:orX,y:orY};};
 			return {
 				set:set,
 				getFromScreenXY:getFromScreenXY,
-				getWidth:getWidth
+				getWidth:getWidth,
+				getHeight: getHeight,
+				getOrigin: getOrigin
 			};
 		})(width, height);
 		
@@ -265,6 +298,17 @@
 			var zoomFactor = isNearEdge(x,y) ? 2 : 0.5;
 			var coords = zoomFactor < 1 ? coordinates.getFromScreenXY(x, y) : coordinates.getFromScreenXY(width/2, height/2);
 			setBoundaries(coords.x, coords.y, coordinates.getWidth() * zoomFactor);
+		};
+		var direction = {UP:0,RIGHT:1,DOWN:2,LEFT:3};
+		var goInDirection = function(d){
+			var x,y,w = coordinates.getWidth(), h = coordinates.getHeight(), coords = coordinates.getOrigin();
+			switch(d){
+				case direction.UP: x = coords.x; y = coords.y + h; break;
+				case direction.RIGHT: x = coords.x + w; y = coords.y; break;
+				case direction.DOWN: x = coords.x; y = coords.y - h; break;
+				case direction.LEFT: x = coords.x - w; y = coords.y; break;
+			}
+			setBoundaries(x, y, w);
 		};
 		var clickOther = function(){
 			drawing.stop();
@@ -327,7 +371,11 @@
 		};
 		return {
 			setBoundaries: setBoundaries,
-			setColorScheme: setColorScheme
+			setColorScheme: setColorScheme,
+			goUp: function(){goInDirection(direction.UP);},
+			goDown: function(){goInDirection(direction.DOWN);},
+			goLeft: function(){goInDirection(direction.LEFT);},
+			goRight: function(){goInDirection(direction.RIGHT);}
 		};
 	})();
 	var contextMenu = (function(){
@@ -335,26 +383,31 @@
 		var downTop = body.offsetHeight * 0.05;
 		var left = body.offsetWidth * 0.05;
 		var onClose = function(){};
-		var makeColorSchemePicture = function(scheme){
+		var makeColorSchemePicture = function(scheme, width, height){
 			var canvas = document.createElement('canvas');
-			canvas.width = 300;
-			canvas.height = 50;
+			canvas.width = width;
+			canvas.height = height;
 			var context = canvas.getContext('2d');
-			for(var i=0;i<300;i++){
+			for(var i=0;i<width;i++){
 				context.fillStyle = 'hsl('+scheme.hue(i)+',50%,'+scheme.lightness(i)+'%)';
-				context.fillRect(i,0,1,50);
+				context.fillRect(i,0,1,height);
 			}
 			return canvas;
 		};
 		return makeNode(
-			"<div id='1' style='position:absolute;left:"+left+"px;top:"+upTop+"px;transition-property:top;transition-duration:0.1s;background-color:#eee;width:90%;height:90%'>"+
-				"<div id='5' style='position:relative;padding:3px'></div>" +
-				"<input id='2' type='button' value='x' />" +
-				"<input id='3' type='button' value='reset'/>" +
-				"<div id='4'></div>" +
+			"<div id='1' style='position:absolute;left:"+left+"px;top:"+upTop+"px;transition-property:top;transition-duration:0.1s;background-color:rgba(200,200,200,0.5);border-radius:10px;width:90%;height:90%'>"+
+				"<div id='4' style='position:relative;padding:5px' align='right'><div class='cross' id='9'></div></div>" +
+				"<div id='3'></div>" +
+				"<input id='2' type='button' class='context-menu-button' value='reset'/>" +
+				"<div id='5' class='context-menu-button up'></div>" +
+				"<div id='6' class='context-menu-button down'></div>" +
+				"<div id='8' class='context-menu-button right'></div>" +
+				"<div id='7' class='context-menu-button left'></div>" +
 			"</div>",
-			function(div, close, reset, schemes, header){
-				header.appendChild(document.getElementById('cross'));
+			function(div, reset, schemes, header, up, down, left, right, cross){
+				// var cross = document.getElementById('cross');
+				// header.appendChild(cross);
+
 				body.appendChild(div);
 				var appear = function(){
 					div.style.top = downTop + "px";
@@ -363,7 +416,7 @@
 					div.style.top = upTop + "px";
 					onClose(chosenToDo);
 				};
-				close.onclick = function(){
+				cross.onclick = function(){
 					disappear();
 				};
 				reset.onclick = function(){
@@ -371,7 +424,27 @@
 						field.setBoundaries(0,0,4);
 					});
 				};
-				var colorSchemeOptions = (function(){
+				up.onclick = function(){
+					disappear(function(){
+						field.goUp();
+					});
+				};
+				down.onclick = function(){
+					disappear(function(){
+						field.goDown();
+					});
+				};
+				left.onclick = function(){
+					disappear(function(){
+						field.goLeft();
+					});
+				};
+				right.onclick = function(){
+					disappear(function(){
+						field.goRight();
+					});
+				};
+				var colorSchemeOptions = (function(parentDiv){
 					var select = function(i){
 						all.map(function(o,j){
 							o.makeActive(i == j);
@@ -384,9 +457,10 @@
 						return makeNode(
 							"<div id='1'></div>",
 							function(div){
-								div.appendChild(makeColorSchemePicture(scheme));
+								div.appendChild(makeColorSchemePicture(scheme, parentDiv.offsetWidth - 3, 50));
 								var makeActive = function(bool){
 									div.style.backgroundColor = bool ? "#aaa" : "";
+									div.style.border = bool ? "2pt solid #e00" : "";
 								};
 								div.onclick = function(){select(i);};
 								return {
@@ -398,7 +472,7 @@
 					});
 					all.map(function(o){schemes.appendChild(o.node);});
 					select(0);
-				})();
+				})(div);
 				
 				return {
 					appear:function(f){onClose = f;appear();}
