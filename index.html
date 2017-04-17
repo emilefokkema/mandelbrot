@@ -310,22 +310,9 @@
 			}
 			setBoundaries(x, y, w);
 		};
-		var clickOther = function(){
-			drawing.stop();
-			contextMenu.appear(function(chosenToDo){
-				setTimeout(function(){
-					drawing.resume();
-					(chosenToDo || function(){})();
-				},300)
-			});
-		};
+		
 		canvas.addEventListener('click', clickNormal);
-		canvas.addEventListener('contextmenu',function(e){
-			if(isNearEdge(e.clientX, e.clientY)){
-				e.preventDefault();
-				clickOther();
-			}
-		});
+		
 		var colorScheme = colorSchemes[0];
 		var square = function(x,y,size){
 			var coords;
@@ -377,107 +364,6 @@
 			goLeft: function(){goInDirection(direction.LEFT);},
 			goRight: function(){goInDirection(direction.RIGHT);}
 		};
-	})();
-	var contextMenu = (function(){
-		var upTop = -body.offsetHeight * 0.9;
-		var downTop = body.offsetHeight * 0.05;
-		var left = body.offsetWidth * 0.05;
-		var onClose = function(){};
-		var makeColorSchemePicture = function(scheme, width, height){
-			var canvas = document.createElement('canvas');
-			canvas.width = width;
-			canvas.height = height;
-			var context = canvas.getContext('2d');
-			for(var i=0;i<width;i++){
-				context.fillStyle = 'hsl('+scheme.hue(i)+',50%,'+scheme.lightness(i)+'%)';
-				context.fillRect(i,0,1,height);
-			}
-			return canvas;
-		};
-		return makeNode(
-			"<div id='1' style='position:absolute;left:"+left+"px;top:"+upTop+"px;transition-property:top;transition-duration:0.1s;background-color:rgba(200,200,200,0.5);border-radius:10px;width:90%;height:90%'>"+
-				"<div id='4' style='position:relative;padding:5px' align='right'><div class='cross' id='9'></div></div>" +
-				"<div id='3'></div>" +
-				"<input id='2' type='button' class='context-menu-button' value='reset'/>" +
-				"<div id='5' class='context-menu-button up'></div>" +
-				"<div id='6' class='context-menu-button down'></div>" +
-				"<div id='8' class='context-menu-button right'></div>" +
-				"<div id='7' class='context-menu-button left'></div>" +
-			"</div>",
-			function(div, reset, schemes, header, up, down, left, right, cross){
-				// var cross = document.getElementById('cross');
-				// header.appendChild(cross);
-
-				body.appendChild(div);
-				var appear = function(){
-					div.style.top = downTop + "px";
-				};
-				var disappear = function(chosenToDo){
-					div.style.top = upTop + "px";
-					onClose(chosenToDo);
-				};
-				cross.onclick = function(){
-					disappear();
-				};
-				reset.onclick = function(){
-					disappear(function(){
-						field.setBoundaries(0,0,4);
-					});
-				};
-				up.onclick = function(){
-					disappear(function(){
-						field.goUp();
-					});
-				};
-				down.onclick = function(){
-					disappear(function(){
-						field.goDown();
-					});
-				};
-				left.onclick = function(){
-					disappear(function(){
-						field.goLeft();
-					});
-				};
-				right.onclick = function(){
-					disappear(function(){
-						field.goRight();
-					});
-				};
-				var colorSchemeOptions = (function(parentDiv){
-					var select = function(i){
-						all.map(function(o,j){
-							o.makeActive(i == j);
-						});
-						disappear(function(){
-							field.setColorScheme(colorSchemes[i]);
-						});
-					};
-					var all = colorSchemes.map(function(scheme, i){
-						return makeNode(
-							"<div id='1'></div>",
-							function(div){
-								div.appendChild(makeColorSchemePicture(scheme, parentDiv.offsetWidth - 3, 50));
-								var makeActive = function(bool){
-									div.style.backgroundColor = bool ? "#aaa" : "";
-									div.style.border = bool ? "2pt solid #e00" : "";
-								};
-								div.onclick = function(){select(i);};
-								return {
-									node:div,
-									makeActive:makeActive
-								};
-							}
-						);
-					});
-					all.map(function(o){schemes.appendChild(o.node);});
-					select(0);
-				})(div);
-				
-				return {
-					appear:function(f){onClose = f;appear();}
-				};
-			});
 	})();
 })(document.body);
 </script>
