@@ -223,7 +223,7 @@
 
 	var field = (function(){
 		var canvas = document.createElement('canvas');
-		var squares,width = body.offsetWidth, height = body.offsetHeight, drawing = {stop:function(){},resume:function(){}};
+		var squares,width = window.innerWidth, height = window.innerHeight, drawing = {stop:function(){},resume:function(){}};
 		canvas.setAttribute('width', width);
 		canvas.setAttribute('height', height);
 		body.appendChild(canvas);
