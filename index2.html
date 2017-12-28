@@ -1,0 +1,62 @@
+<html>
+	<head>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+		<meta name="apple-mobile-web-app-capable" content="yes">
+		<meta name="mobile-web-app-capable" content="yes">
+	</head>
+	<style>
+		body{
+			margin:0px;
+			padding:0px
+		}
+		#theCanvas{
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+	<body>
+		<canvas id="theCanvas"/>
+		<script src="infinite-canvas.min.js"></script>
+		<script>
+			(function(){
+				var escapeStep = function(maxIt, x, y){
+					var zrn, zin, zr = 0, zi = 0, cr = x, ci = y, step = 0, modsq = 0;
+					while(modsq < 4 && step++ < maxIt){
+						zrn = zr * zr - zi * zi + cr;
+						zin = 2 * zr * zi + ci;
+						zr = zrn;
+						zi = zin;
+						modsq = zr * zr + zi * zi;
+					}
+
+					return {modsq:modsq, step:step};
+				};
+				var colorScheme = {
+					lightness: function(normalizedStep){
+						return 50 * (1 + Math.sin(normalizedStep / 20));
+					},
+					hue: function(normalizedStep){
+						return normalizedStep*2;
+					}
+				};
+				var canvas = infiniteCanvas(document.getElementById("theCanvas"));
+				canvas.drawAsync({
+					f:function(ctx, viewBox, done){
+						var esc = escapeStep(4000,viewBox.x / 100, viewBox.y / 100);
+						if(esc.modsq < 4){
+							ctx.fillStyle = '#000';
+							ctx.fillRect(viewBox.x, viewBox.y, viewBox.width, viewBox.height);
+						}else{
+							var normalizedStep = esc.step + 1 - Math.log(Math.log(Math.sqrt(esc.modsq))) * 1.4426950408889634;
+							ctx.fillStyle = 'hsl('+colorScheme.hue(normalizedStep)+',50%,'+colorScheme.lightness(normalizedStep)+'%)';
+							ctx.fillRect(viewBox.x, viewBox.y, viewBox.width, viewBox.height);
+						}
+						done();
+					},
+					boxSize:5,
+					chunkSize:60
+				});
+			})();
+		</script>
+	</body>
+</html>
