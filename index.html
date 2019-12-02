@@ -1,370 +1,93 @@
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<style>
-.context-menu-button {
-	width:40px;
-	height: 40px;
-	border: 1pt solid #000;
-	margin: 10px;
-	cursor: pointer;
-}
-.cross {
-	height: 20px;
-	width: 20px;
-	cursor: pointer;
-	background-image: url("data:image/svg+xml;utf8,<svg width=\"20\" height=\"20\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M15.65685424949238 18.485281374238568 L 18.48528137423857 15.65685424949238 L 12.828427124746192 10 L 18.48528137423857 4.34314575050762 L 15.65685424949238 1.5147186257614305 L 10.000000000000002 7.17157287525381 L 4.343145750507619 1.5147186257614305 L 1.5147186257614287 4.34314575050762 L 7.171572875253809 10 L 1.5147186257614287 15.65685424949238 L 4.343145750507619 18.485281374238568 L 9.999999999999998 12.82842712474619 L 15.65685424949238 18.485281374238568 Z\" fill=\"black\"></path></svg>");
-
-}
-.left {
-	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M17.701902961143723 6.741747852752233 L 4.443650813895955 20 L 17.70190296114372 33.25825214724777 L 19.82322330470336 31.136931803688125 L 10.186291501015239 21.5 L 32.37563132923542 21.5 L 32.37563132923542 18.5 L 10.186291501015244 18.5 L 19.823223304703365 8.863068196311875 L 17.701902961143723 6.741747852752233 Z\" fill=\"black\"></path></svg>");
-}
-.up {
-	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M33.25825214724777 17.70190296114372 L 20 4.443650813895955 L 6.741747852752233 17.701902961143723 L 8.863068196311875 19.823223304703365 L 18.5 10.18629150101524 L 18.5 32.37563132923542 L 21.500000000000004 32.37563132923542 L 21.499999999999996 10.186291501015244 L 31.136931803688125 19.82322330470336 L 33.25825214724777 17.70190296114372 Z\" fill=\"black\"></path></svg>");
-}
-.down {
-	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M6.741747852752233 22.29809703885628 L 20.000000000000004 35.55634918610404 L 33.25825214724777 22.298097038856277 L 31.136931803688125 20.176776695296635 L 21.5 29.81370849898476 L 21.499999999999996 7.624368670764584 L 18.499999999999996 7.624368670764582 L 18.500000000000004 29.81370849898476 L 8.863068196311875 20.17677669529664 L 6.741747852752233 22.29809703885628 Z\" fill=\"black\"></path></svg>");
-}
-.right {
-	background-image: url("data:image/svg+xml;utf8,<svg width=\"40\" height=\"40\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M22.29809703885628 33.25825214724777 L 35.55634918610404 20 L 22.298097038856277 6.741747852752233 L 20.176776695296635 8.863068196311875 L 29.81370849898476 18.5 L 7.624368670764586 18.5 L 7.624368670764582 21.500000000000004 L 29.813708498984756 21.499999999999996 L 20.17677669529664 31.136931803688125 L 22.29809703885628 33.25825214724777 Z\" fill=\"black\"></path></svg>");
-}
-</style>
+	<style>
+		body{margin: 0; padding: 0}
+	</style>
 </head>
-<body style="margin:0px;padding:0px"></body>
-<script src="../sudoku/makeNode.js"></script>
-<script>
-(function(body){
-	
-	
-	var escapeStep = function(maxIt, x, y){
-		var zrn, zin, zr = 0, zi = 0, cr = x, ci = y, step = 0, modsq = 0;
-		while(modsq < 4 && step++ < maxIt){
-			zrn = zr * zr - zi * zi + cr;
-			zin = 2 * zr * zi + ci;
-			zr = zrn;
-			zi = zin;
-			modsq = zr * zr + zi * zi;
-		}
-
-		return {modsq:modsq, step:step};
-	};
-	var makeIterator = function(arr){
-		if(!arr || arr.length == 0){
-			return function(){};
-		}else{
-			var i = 0;
-			return function(){
-				if(i < arr.length){
-					return arr[i++];
-				}
-			};
-		}
-		
-	};
-	var makeSpiralIterator = (function(){
-		var repeater = function(arr){
-			var i = 0;
-			return {
-				next:function(){
-					if(i >= arr.length){
-						i = 0;
+<body>
+<canvas width="900" height="700" id="canvas"/>
+<script type="application/javascript">
+	(function(){
+		var canvas = document.getElementById("canvas");
+		var width = canvas.width;
+		var height = canvas.height;
+		var context = canvas.getContext("2d");
+		var workerFn = (function(postMessage, onmessage){
+			return function(size){
+				var length = 4 * size * size;
+				var escapeStep = function(maxIt, x, y){
+					var zrn, zin, zr = 0, zi = 0, cr = x, ci = y, step = 0, modsq = 0;
+					while(modsq < 4 && step++ < maxIt){
+						zrn = zr * zr - zi * zi + cr;
+						zin = 2 * zr * zi + ci;
+						zr = zrn;
+						zi = zin;
+						modsq = zr * zr + zi * zi;
 					}
-					return arr[i++];
-				}
-			};
-		};
-		var direction = function(){
-			return repeater([
-				{i:1,j:0},
-				{i:0,j:1},
-				{i:-1,j:0},
-				{i:0,j:-1}
-			]);
-		};
-		var rectangle = function(imin, imax, jmin, jmax){
-			return {
-				imin:imin,
-				imax:imax,
-				jmin:jmin,
-				jmax:jmax,
-				contains:function(index){
-					var i = index.i, j = index.j;
-					return imin <= i && i <= imax && jmin <= j && j <= jmax;
-				},
-				join:function(r){
-					return rectangle(Math.min(imin, r.imin), Math.max(imax, r.imax), Math.min(jmin, r.jmin), Math.max(jmax, r.jmax));
-				}
-			};
-		};
-		var spiralingIndex = function(iStart, jStart){
-			var currentRectangle = rectangle(iStart, iStart, jStart, jStart),
-				currentIndex = {i:iStart,j:jStart},
-				directionGiver = direction(); 
-				currentDirection = directionGiver.next();
-
-			return {
-				next:function(){
-					var result = currentIndex;
-					currentIndex = {i:currentIndex.i + currentDirection.i, j: currentIndex.j + currentDirection.j};
-					if(!currentRectangle.contains(currentIndex)){
-						currentRectangle = currentRectangle.join(rectangle(currentIndex.i, currentIndex.i, currentIndex.j, currentIndex.j));
-						currentDirection = directionGiver.next();
-					}
-					return result;
-				}
-			};
-		};
-		
-		
-		
-		return function(arr, iStart, jStart){
-			if(!arr || arr.length == 0){
-				return function(){};
-			}else{
-				var index,
-					count = 0,
-					maxCount = arr.length * arr[0].length;
-					indexRectangle = rectangle(0, arr.length - 1, 0, arr[0].length - 1),
-					spiral = spiralingIndex(iStart, jStart),
-					going = true;
-
-				var toReturn = function(){
-					if(count >= maxCount){
-						console.log("klaar met spiraal");
-						return;
-					}
-					while(!indexRectangle.contains((index = spiral.next())) && going){
-						
-
-					}
-					count ++;
-					return arr[index.i][index.j];
+					return {modsq:modsq, step:step};
 				};
-				return toReturn;
-			}
-		};
-	})();
-		
-	var doSequentially = function(nextToDo, batchSize, whetherToContinue, doneCallback){
-		var next;
-		var todo = function(){
-			if(whetherToContinue()){
-				var batchCounter = 0;
-				while(whetherToContinue() && batchCounter++ <= batchSize && (next = nextToDo())){
-					next();
-				}
-				if(!next && doneCallback){
-					doneCallback();
-				}
-				if(whetherToContinue() && next){
-					setTimeout(todo,1);
-				}
-			}
-			
-		};
-		todo();
-		return todo;
-	};
-
-	var storage = (function(){
-		var read = function(){
-			var match = window.location.hash.match(/^#(-?\d+(?:\.\d+)?(?:e-?\d+)?),(-?\d+(?:\.\d+)?(?:e-?\d+)?),(\d+(?:\.\d+)?(?:e-?\d+)?)$/);
-			if(match){
-				return {
-					orX : parseFloat(match[1]),
-					orY : parseFloat(match[2]),
-					Xwidth : parseFloat(match[3])
+				onmessage = function(m){
+					var data = m.data;
+					var origX = data.origX;
+					var origY = data.origY;
+					var scaleX = data.scaleX;
+					var scaleY = data.scaleY;
+					var array = new Uint8ClampedArray(length);
+					var inPreviousRows = 0;
+					for(var tileY = 0;tileY < size; tileY++){
+						for(var tileX = 0; tileX < size; tileX++){
+							var index = inPreviousRows + tileX * 4;
+							var realX = origX + tileX * scaleX;
+							var realY = origY + tileY * scaleY;
+							var st = escapeStep(50, realX, realY);
+							var normalizedStep = st.step + 1 - Math.log(Math.log(Math.sqrt(st.modsq))) * 1.4426950408889634;
+							array[index] = st.modsq < 4 ? 0 : 10 * normalizedStep;
+							//array[index] = 100 + 50 * Math.sin(realX) + 50 * Math.sin(realY);
+							array[index + 3] = 255;
+						}
+						inPreviousRows += size * 4;
+					}
+					if(array.length === 0){
+						debugger;
+					}
+					postMessage(array.buffer, [array.buffer]);
+					
 				};
-			}else{
-				return {
-					orX: 0,
-					orY :0,
-					Xwidth : 4
-				};
-			}
+			};
+		})();
+		var tileSize = 75;
+		var Tile = function(x, y, size){
+			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+size+')'], {type: "application/javascript"})));
+			this.worker.onmessage = function(e){
+				var buffer = e.data;
+				var array = new Uint8ClampedArray(buffer);
+				console.log(array);
+				var imageData = new ImageData(array, tileSize);
+				context.putImageData(imageData, x, y);
+			};
 		};
-		var write = function(orX, orY, Xwidth){
-			window.location.hash = "#" + orX + "," + orY + "," + Xwidth;
+		Tile.prototype.draw = function(origX, origY, scaleX, scaleY){
+			this.worker.postMessage({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY});
 		};
-		return {
-			read:read,
-			write:write
-		};
-	})();
+		var nRows = Math.floor(height / tileSize) + 1;
+		var nCols = Math.floor(width / tileSize) + 1;
+		var tiles = [];
+		var left = -2;
+		var top = 2;
+		var virtualWidth = 3;
+		var virtualHeight = 3;
+		var virtualTileSize = virtualWidth * tileSize / width;
+		for(var i=0;i<nRows;i++){
+			var row = [];
+			tiles.push(row);
+			for(var j=0;j<nCols;j++){
+				var tile = new Tile(j * tileSize, i * tileSize, tileSize);
 
-	var colorSchemes = [
-		{
-			lightness: function(normalizedStep){
-				return 50 * (1 + Math.sin(normalizedStep / 20));
-			},
-			hue: function(normalizedStep){
-				return normalizedStep*2;
-			}
-		},
-		{
-			lightness: function(normalizedStep){
-				return 50 * (1 + Math.sin(normalizedStep / 20));
-			},
-			hue: function(normalizedStep){
-				return 2*normalizedStep - Math.pow(normalizedStep, 2) / 100;
-			}
-		},
-		{
-			lightness:function(n){
-				return 50 * (1 + 0.75 * Math.sin(n / 10));
-			},
-			hue: function(n){
-				return 120 * Math.sin(n / 20);
+				tile.draw(left + j * virtualTileSize, top - i * virtualTileSize, virtualTileSize / tileSize, -virtualTileSize / tileSize);
+				row.push(tile);
 			}
 		}
-	];
-
-	var field = (function(){
-		var canvas = document.createElement('canvas');
-		var squares,width = window.innerWidth, height = window.innerHeight, drawing = {stop:function(){},resume:function(){}};
-		canvas.setAttribute('width', width);
-		canvas.setAttribute('height', height);
-		body.appendChild(canvas);
-		var context = canvas.getContext('2d');
-		var setBoundaries = function(orX, orY, Xwidth){
-			drawing.stop();
-			coordinates.set(orX, orY, Xwidth);
-			storage.write(orX, orY, Xwidth);
-			drawing = draw();
-		};
-		var redraw = function(){
-			drawing.stop();
-			drawing = draw();
-		};
-		var coordinates = (function(w,h){
-			var orX, orY, minx,maxx,miny,maxy;
-			var getFromScreenXY = function(x,y){
-				var cx = minx + (x / w) * (maxx - minx);
-				var cy = maxy - (y / h) * (maxy - miny);
-				return {x:cx,y:cy};
-			};
-			var set = function(orX_, orY_, Xwidth){
-				orX = orX_;
-				orY = orY_;
-				minx = orX - Xwidth / 2;
-				maxx = orX + Xwidth / 2;
-				var Ywidth = Xwidth * (h / w);
-				miny = orY - Ywidth / 2;
-				maxy = orY + Ywidth / 2;
-			};
-			var getWidth = function(){return maxx - minx;};
-			var getHeight = function(){return maxy - miny;};
-			var getOrigin = function(){return {x:orX,y:orY};};
-			return {
-				set:set,
-				getFromScreenXY:getFromScreenXY,
-				getWidth:getWidth,
-				getHeight: getHeight,
-				getOrigin: getOrigin
-			};
-		})(width, height);
-		
-		var draw = function(){
-			var drawing = true;
-			var whetherToContinue = function(){return drawing;};
-			var squaresDraw = squares.map(function(r){return r.map(function(rr){return rr.draw;});});
-			var resume;
-			resume = doSequentially(
-				makeSpiralIterator(squaresDraw, Math.floor(squares.length/2), Math.floor(squares[0].length/2)),
-				200,
-				whetherToContinue,
-				function(){
-					var functions = squares.map(function(r){return r.map(function(rr){return rr.drawDetailed;});});
-					var iterator = makeSpiralIterator(functions, Math.floor(squares.length/2), Math.floor(squares[0].length/2));
-					resume = doSequentially(
-						iterator,
-						30,
-						whetherToContinue
-					);
-				}
-			);
-			return {
-				stop: function(){drawing = false;},
-				resume: function(){drawing = true;resume();}
-			};
-		};
-		var isNearEdge = function(x,y){
-			return Math.min.apply(null, [x, x - width, y, y - height].map(Math.abs)) < 50;
-		};
-		var clickNormal = function(e){
-			var x = e.clientX, y = e.clientY;
-			var zoomFactor = isNearEdge(x,y) ? 2 : 0.5;
-			var coords = zoomFactor < 1 ? coordinates.getFromScreenXY(x, y) : coordinates.getFromScreenXY(width/2, height/2);
-			setBoundaries(coords.x, coords.y, coordinates.getWidth() * zoomFactor);
-		};
-		var direction = {UP:0,RIGHT:1,DOWN:2,LEFT:3};
-		var goInDirection = function(d){
-			var x,y,w = coordinates.getWidth(), h = coordinates.getHeight(), coords = coordinates.getOrigin();
-			switch(d){
-				case direction.UP: x = coords.x; y = coords.y + h; break;
-				case direction.RIGHT: x = coords.x + w; y = coords.y; break;
-				case direction.DOWN: x = coords.x; y = coords.y - h; break;
-				case direction.LEFT: x = coords.x - w; y = coords.y; break;
-			}
-			setBoundaries(x, y, w);
-		};
-		
-		canvas.addEventListener('click', clickNormal);
-		
-		var colorScheme = colorSchemes[0];
-		var square = function(x,y,size){
-			var coords;
-			var draw = function(){
-				coords = coordinates.getFromScreenXY(x,y);
-				var esc = escapeStep(4000,coords.x,coords.y);
-				if(esc.modsq < 4){
-					context.fillStyle = '#000';
-					context.fillRect(x, y, size, size);
-				}else{
-					var normalizedStep = esc.step + 1 - Math.log(Math.log(Math.sqrt(esc.modsq))) * 1.4426950408889634;
-					context.fillStyle = 'hsl('+colorScheme.hue(normalizedStep)+',50%,'+colorScheme.lightness(normalizedStep)+'%)';
-					context.fillRect(x, y, size, size);
-				}
-			};
-			var drawDetailed = function(){
-				var smallSquares = getSquares(x, x+size, y, y+size, 1);
-				smallSquares.reduce(function(a,b){return a.concat(b);}).map(function(s){s.draw();});
-			};
-			return {
-				draw:draw,
-				drawDetailed:drawDetailed
-			};
-		};
-		var getSquares = function(minx, maxx, miny, maxy, size){
-			var rresult, result = [];
-			for(var x = minx; x < maxx; x+=size){
-				rresult = [];
-				for(var y = miny;y < maxy; y+=size){
-					rresult.push(square(x, y, size));
-				}
-				result.push(rresult);
-			}
-			return result;
-		};
-		squares = getSquares(0, width, 0, height, 10);
-		var whereWeAre = storage.read();
-		setBoundaries(whereWeAre.orX, whereWeAre.orY, whereWeAre.Xwidth);
-		var setColorScheme = function(s){
-			if(s == colorScheme){return;}
-			colorScheme = s;
-			redraw();
-		};
-		return {
-			setBoundaries: setBoundaries,
-			setColorScheme: setColorScheme,
-			goUp: function(){goInDirection(direction.UP);},
-			goDown: function(){goInDirection(direction.DOWN);},
-			goLeft: function(){goInDirection(direction.LEFT);},
-			goRight: function(){goInDirection(direction.RIGHT);}
-		};
 	})();
-})(document.body);
 </script>
+</body>
 </html>
