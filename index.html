@@ -2,6 +2,7 @@
 <head>
 	<style>
 		body{margin: 0; padding: 0}
+		canvas{width: 100%;height:100%;}
 	</style>
 </head>
 <body>
@@ -9,8 +10,11 @@
 <script type="application/javascript">
 	(function(){
 		var canvas = document.getElementById("canvas");
-		var width = canvas.width;
-		var height = canvas.height;
+		var clientRect = canvas.getBoundingClientRect();
+		var width = clientRect.width;
+		var height = clientRect.height;
+		canvas.setAttribute("width", width);
+		canvas.setAttribute("height", height);
 		var context = canvas.getContext("2d");
 		var workerFn = (function(postMessage, onmessage){
 			return function(size){
@@ -39,29 +43,28 @@
 							var index = inPreviousRows + tileX * 4;
 							var realX = origX + tileX * scaleX;
 							var realY = origY + tileY * scaleY;
-							var st = escapeStep(50, realX, realY);
+							var st = escapeStep(4000, realX, realY);
 							var normalizedStep = st.step + 1 - Math.log(Math.log(Math.sqrt(st.modsq))) * 1.4426950408889634;
-							array[index] = st.modsq < 4 ? 0 : 10 * normalizedStep;
-							//array[index] = 100 + 50 * Math.sin(realX) + 50 * Math.sin(realY);
+							var hue = normalizedStep * 2;
+							var lightness = st.modsq < 4 ? 0 : 175 * (1 + Math.sin(normalizedStep / 20));
+							array[index] = lightness;
+							array[index + 1] = lightness;
+							array[index + 2] = lightness;
 							array[index + 3] = 255;
 						}
 						inPreviousRows += size * 4;
-					}
-					if(array.length === 0){
-						debugger;
 					}
 					postMessage(array.buffer, [array.buffer]);
 					
 				};
 			};
 		})();
-		var tileSize = 75;
+		var tileSize = 50;
 		var Tile = function(x, y, size){
 			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+size+')'], {type: "application/javascript"})));
 			this.worker.onmessage = function(e){
 				var buffer = e.data;
 				var array = new Uint8ClampedArray(buffer);
-				console.log(array);
 				var imageData = new ImageData(array, tileSize);
 				context.putImageData(imageData, x, y);
 			};
@@ -72,21 +75,53 @@
 		var nRows = Math.floor(height / tileSize) + 1;
 		var nCols = Math.floor(width / tileSize) + 1;
 		var tiles = [];
-		var left = -2;
-		var top = 2;
-		var virtualWidth = 3;
-		var virtualHeight = 3;
-		var virtualTileSize = virtualWidth * tileSize / width;
 		for(var i=0;i<nRows;i++){
 			var row = [];
 			tiles.push(row);
 			for(var j=0;j<nCols;j++){
 				var tile = new Tile(j * tileSize, i * tileSize, tileSize);
-
-				tile.draw(left + j * virtualTileSize, top - i * virtualTileSize, virtualTileSize / tileSize, -virtualTileSize / tileSize);
 				row.push(tile);
 			}
 		}
+		var centerX = 0;
+		var centerY = 0;
+		var virtualWidth = 4;
+		var draw = function(){
+			var scale = virtualWidth / width;
+			var virtualHeight = height * scale;
+			var left = centerX - virtualWidth / 2;
+			var top = centerY + virtualHeight / 2;
+			var virtualTileSize = tileSize * scale;
+			for(var i=0;i<nRows;i++){
+				for(var j=0;j<nCols;j++){
+					tiles[i][j].draw(left + j * virtualTileSize, top - i * virtualTileSize, scale, -scale);
+				}
+			}
+		};
+		var zoomIn = function(clientX, clientY){
+			var scale = virtualWidth / width;
+			var virtualHeight = height * scale;
+			var virtualX = (centerX - virtualWidth / 2) + clientX * scale;
+			var virtualY = (centerY + virtualHeight / 2) - clientY * scale;
+			centerX = virtualX;
+			centerY = virtualY;
+			virtualWidth = virtualWidth / 3;
+			draw();
+		};
+		var zoomOut = function(){
+			virtualWidth = virtualWidth * 3;
+			draw();
+		};
+		draw(0, 0, 4);
+		canvas.addEventListener("click", function(ev){
+			var clientX = ev.clientX;
+			var clientY = ev.clientY;
+			if(clientX < 40 || width - clientX < 40 || clientY < 40 || height - clientY < 40){
+				zoomOut();
+			}else{
+				zoomIn(clientX, clientY);
+			}
+		});
 	})();
 </script>
 </body>
