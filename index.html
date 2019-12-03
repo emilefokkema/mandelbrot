@@ -60,18 +60,73 @@
 			};
 		})();
 		var tileSize = 100;
-		var Tile = function(x, y, size){
-			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+size+')'], {type: "application/javascript"})));
-			this.worker.onmessage = function(e){
-				var buffer = e.data;
-				var array = new Uint8ClampedArray(buffer);
-				var imageData = new ImageData(array, tileSize);
-				context.putImageData(imageData, x, y);
-			};
+		var WorkerWrapper = function(){
+			var self = this;
+			this.onmessage = function(){};
+			this.busy = false;
+			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+tileSize+')'], {type: "application/javascript"})));
+			this.worker.onmessage = function(m){
+				self.onmessage(m);
+				self.busy = false;
+			}
+		};
+		WorkerWrapper.prototype.postMessage = function(message, onResponse){
+			this.onmessage = onResponse;
+			this.busy = true;
+			this.worker.postMessage(message);
+		};
+		var WorkerPoolJob = function(message, onResponse){
+			this.message = message;
+			this.onResponse = onResponse;
+		};
+		var WorkerPool = function(){
+			this.workers = Array.apply(null, new Array(12)).map(function(){return new WorkerWrapper();});
+			this.jobs = [];
+		};
+		WorkerPool.prototype.executeNextJob = function(){
+			if(!this.jobs.length){
+				return;
+			}
+			var freeWorker = this.workers.find(function(w){return !w.busy;});
+			if(!freeWorker){return;}
+			var job = this.jobs.pop();
+			var self = this;
+			freeWorker.postMessage(job.message, function(r){
+				job.onResponse(r);
+				self.executeNextJob();
+			});
+		};
+		WorkerPool.prototype.createJob = function(message, onResponse){
+			var job = new WorkerPoolJob(message, onResponse);
+			this.jobs.push(job);
+			this.executeNextJob();
+			return job;
+		};
+		var Tile = function(workerPool, x, y){
+			this.x = x;
+			this.y = y;
+			this.workerPool = workerPool;
+			// this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+size+')'], {type: "application/javascript"})));
+			// this.worker.onmessage = function(e){
+			// 	var buffer = e.data;
+			// 	var array = new Uint8ClampedArray(buffer);
+			// 	var imageData = new ImageData(array, tileSize);
+			// 	context.putImageData(imageData, x, y);
+			// };
+		};
+		Tile.prototype.drawArrayBuffer = function(buffer){
+			var array = new Uint8ClampedArray(buffer);
+			var imageData = new ImageData(array, tileSize);
+			context.putImageData(imageData, this.x, this.y);
 		};
 		Tile.prototype.draw = function(origX, origY, scaleX, scaleY){
-			this.worker.postMessage({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY});
+			var self = this;
+			var job = this.workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY}, function(m){
+				self.drawArrayBuffer(m.data);
+			});
+			//this.worker.postMessage({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY});
 		};
+		var workerPool = new WorkerPool();
 		var nRows = Math.floor(height / tileSize) + 1;
 		var nCols = Math.floor(width / tileSize) + 1;
 		var tiles = [];
@@ -79,7 +134,7 @@
 			var row = [];
 			tiles.push(row);
 			for(var j=0;j<nCols;j++){
-				var tile = new Tile(j * tileSize, i * tileSize, tileSize);
+				var tile = new Tile(workerPool, j * tileSize, i * tileSize);
 				row.push(tile);
 			}
 		}
