@@ -59,7 +59,7 @@
 				};
 			};
 		})();
-		var tileSize = 50;
+		var tileSize = 100;
 		var Tile = function(x, y, size){
 			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+size+')'], {type: "application/javascript"})));
 			this.worker.onmessage = function(e){
