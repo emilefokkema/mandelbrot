@@ -100,7 +100,7 @@
 			this.resolvePromise(response);
 		};
 		var WorkerPool = function(){
-			this.workers = Array.apply(null, new Array(12)).map(function(){return new WorkerWrapper();});
+			this.workers = Array.apply(null, new Array(navigator.hardwareConcurrency)).map(function(){return new WorkerWrapper();});
 			this.jobs = [];
 		};
 		WorkerPool.prototype.executeNextJob = function(){
