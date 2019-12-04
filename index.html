@@ -11,8 +11,8 @@
 	(function(){
 		var canvas = document.getElementById("canvas");
 		var clientRect = canvas.getBoundingClientRect();
-		var width = clientRect.width;
-		var height = clientRect.height;
+		var width = clientRect.width * devicePixelRatio;
+		var height = clientRect.height * devicePixelRatio;
 		canvas.setAttribute("width", width);
 		canvas.setAttribute("height", height);
 		var context = canvas.getContext("2d");
@@ -30,29 +30,43 @@
 					}
 					return {modsq:modsq, step:step};
 				};
+				var getRgba = function(x, y, maxIterations){
+					var st = escapeStep(maxIterations, x, y);
+					var normalizedStep = st.step + 1 - Math.log(Math.log(Math.sqrt(st.modsq))) * 1.4426950408889634;
+					var hue = normalizedStep * 2;
+					var lightness = st.modsq < 4 ? 0 : 175 * (1 + Math.sin(normalizedStep / 20));
+					return {r: lightness, g: lightness, b: lightness, a: 255};
+				};
+				var drawPixelWithColor = function(array, x, y, pixelSize, rgba){
+					var left = x * pixelSize;
+					var top = y * size * pixelSize;
+					for(var yy = 0; yy < pixelSize; yy++){
+						for(var xx=0; xx < pixelSize; xx++){
+							var index = (top + yy * size + left + xx) * 4;
+							array[index] = rgba.r;
+							array[index + 1] = rgba.g;
+							array[index + 2] = rgba.b;
+							array[index + 3] = rgba.a;
+						}
+					}
+				};
 				onmessage = function(m){
 					var data = m.data;
 					var origX = data.origX;
 					var origY = data.origY;
 					var scaleX = data.scaleX;
 					var scaleY = data.scaleY;
+					var pixelSize = data.pixelSize;
+					var maxIterations = data.maxIterations;
 					var array = new Uint8ClampedArray(length);
-					var inPreviousRows = 0;
-					for(var tileY = 0;tileY < size; tileY++){
-						for(var tileX = 0; tileX < size; tileX++){
-							var index = inPreviousRows + tileX * 4;
-							var realX = origX + tileX * scaleX;
-							var realY = origY + tileY * scaleY;
-							var st = escapeStep(4000, realX, realY);
-							var normalizedStep = st.step + 1 - Math.log(Math.log(Math.sqrt(st.modsq))) * 1.4426950408889634;
-							var hue = normalizedStep * 2;
-							var lightness = st.modsq < 4 ? 0 : 175 * (1 + Math.sin(normalizedStep / 20));
-							array[index] = lightness;
-							array[index + 1] = lightness;
-							array[index + 2] = lightness;
-							array[index + 3] = 255;
+					var numberOfPixels = size / pixelSize;
+					for(var tileY = 0;tileY < numberOfPixels; tileY+=1){
+						for(var tileX = 0; tileX < numberOfPixels; tileX+=1){
+							var realX = origX + (tileX + 0.5) * pixelSize * scaleX;
+							var realY = origY + (tileY + 0.5) * pixelSize * scaleY;
+							var rgba = getRgba(realX, realY, maxIterations);
+							drawPixelWithColor(array, tileX, tileY, pixelSize, rgba);
 						}
-						inPreviousRows += size * 4;
 					}
 					postMessage(array.buffer, [array.buffer]);
 					
@@ -75,9 +89,15 @@
 			this.busy = true;
 			this.worker.postMessage(message);
 		};
-		var WorkerPoolJob = function(message, onResponse){
+		var WorkerPoolJob = function(message){
+			var self = this;
 			this.message = message;
-			this.onResponse = onResponse;
+			this.promise = new Promise(function(res, rej){
+				self.resolvePromise = res;
+			});
+		};
+		WorkerPoolJob.prototype.onResponse = function(response){
+			this.resolvePromise(response);
 		};
 		var WorkerPool = function(){
 			this.workers = Array.apply(null, new Array(12)).map(function(){return new WorkerWrapper();});
@@ -96,8 +116,8 @@
 				self.executeNextJob();
 			});
 		};
-		WorkerPool.prototype.createJob = function(message, onResponse){
-			var job = new WorkerPoolJob(message, onResponse);
+		WorkerPool.prototype.createJob = function(message){
+			var job = new WorkerPoolJob(message);
 			this.jobs.push(job);
 			this.executeNextJob();
 			return job;
@@ -106,25 +126,13 @@
 			this.x = x;
 			this.y = y;
 			this.workerPool = workerPool;
-			// this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+size+')'], {type: "application/javascript"})));
-			// this.worker.onmessage = function(e){
-			// 	var buffer = e.data;
-			// 	var array = new Uint8ClampedArray(buffer);
-			// 	var imageData = new ImageData(array, tileSize);
-			// 	context.putImageData(imageData, x, y);
-			// };
 		};
-		Tile.prototype.drawArrayBuffer = function(buffer){
-			var array = new Uint8ClampedArray(buffer);
+		Tile.prototype.draw = async function(origX, origY, scaleX, scaleY, pixelSize, maxIterations){
+			var job = this.workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY, pixelSize: pixelSize, maxIterations: maxIterations});
+			var arrayBuffer = (await job.promise).data;
+			var array = new Uint8ClampedArray(arrayBuffer);
 			var imageData = new ImageData(array, tileSize);
 			context.putImageData(imageData, this.x, this.y);
-		};
-		Tile.prototype.draw = function(origX, origY, scaleX, scaleY){
-			var self = this;
-			var job = this.workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY}, function(m){
-				self.drawArrayBuffer(m.data);
-			});
-			//this.worker.postMessage({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY});
 		};
 		var workerPool = new WorkerPool();
 		var nRows = Math.floor(height / tileSize) + 1;
@@ -141,17 +149,24 @@
 		var centerX = 0;
 		var centerY = 0;
 		var virtualWidth = 4;
-		var draw = function(){
+		var drawWithPixelSizeAndMaxIterations = async function(pixelSize, maxIterations){
 			var scale = virtualWidth / width;
 			var virtualHeight = height * scale;
 			var left = centerX - virtualWidth / 2;
 			var top = centerY + virtualHeight / 2;
 			var virtualTileSize = tileSize * scale;
+			var promises = [];
 			for(var i=0;i<nRows;i++){
 				for(var j=0;j<nCols;j++){
-					tiles[i][j].draw(left + j * virtualTileSize, top - i * virtualTileSize, scale, -scale);
+					promises.push(tiles[i][j].draw(left + j * virtualTileSize, top - i * virtualTileSize, scale, -scale, pixelSize, maxIterations))
 				}
 			}
+			await Promise.all(promises);
+		};
+		var draw = async function(){
+			await drawWithPixelSizeAndMaxIterations(50, 4000);
+			await drawWithPixelSizeAndMaxIterations(10, 4000);
+			await drawWithPixelSizeAndMaxIterations(1, 4000);
 		};
 		var zoomIn = function(clientX, clientY){
 			var scale = virtualWidth / width;
@@ -169,8 +184,8 @@
 		};
 		draw(0, 0, 4);
 		canvas.addEventListener("click", function(ev){
-			var clientX = ev.clientX;
-			var clientY = ev.clientY;
+			var clientX = ev.clientX * devicePixelRatio;
+			var clientY = ev.clientY * devicePixelRatio;
 			if(clientX < 40 || width - clientX < 40 || clientY < 40 || height - clientY < 40){
 				zoomOut();
 			}else{
