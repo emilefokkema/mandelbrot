@@ -51,7 +51,7 @@
 					}
 				};
 				onmessage = function(m){
-					var data = m.data;
+					var data = m.data.message;
 					var origX = data.origX;
 					var origY = data.origY;
 					var scaleX = data.scaleX;
@@ -68,7 +68,7 @@
 							drawPixelWithColor(array, tileX, tileY, pixelSize, rgba);
 						}
 					}
-					postMessage(array.buffer, [array.buffer]);
+					postMessage({response: array.buffer, callId: m.data.callId}, [array.buffer]);
 					
 				};
 			};
@@ -76,19 +76,30 @@
 		var tileSize = 100;
 		var WorkerWrapper = function(){
 			var self = this;
-			this.onmessage = function(){};
+			this.nextCallId = 0;
+			this.currentCallId = undefined;
+			this.onResponse = function(){};
 			this.busy = false;
 			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+tileSize+')'], {type: "application/javascript"})));
 			this.worker.onmessage = function(m){
-				self.onmessage(m);
+				if(m.data.callId !== self.currentCallId){
+					return;
+				}
+				self.onResponse(m.data.response);
 				self.busy = false;
+				self.currentCallId = undefined;
 			}
 		};
 		WorkerWrapper.prototype.postMessage = function(message, onResponse){
-			this.onmessage = onResponse;
+			this.onResponse = onResponse;
 			this.busy = true;
-			this.worker.postMessage(message);
+			this.currentCallId = this.nextCallId++;
+			this.worker.postMessage({callId: this.currentCallId, message: message});
 		};
+		WorkerWrapper.prototype.cancelCurrentCall = function(){
+			this.currentCallId = undefined;
+			this.busy = false;
+		}
 		var WorkerPoolJob = function(message){
 			var self = this;
 			this.message = message;
@@ -116,6 +127,12 @@
 				self.executeNextJob();
 			});
 		};
+		WorkerPool.prototype.cancelAll = function(){
+			this.jobs = [];
+			for(var i=0;i<this.workers.length;i++){
+				this.workers[i].cancelCurrentCall();
+			}
+		};
 		WorkerPool.prototype.createJob = function(message){
 			var job = new WorkerPoolJob(message);
 			this.jobs.push(job);
@@ -129,7 +146,7 @@
 		};
 		Tile.prototype.draw = async function(origX, origY, scaleX, scaleY, pixelSize, maxIterations){
 			var job = this.workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY, pixelSize: pixelSize, maxIterations: maxIterations});
-			var arrayBuffer = (await job.promise).data;
+			var arrayBuffer = await job.promise;
 			var array = new Uint8ClampedArray(arrayBuffer);
 			var imageData = new ImageData(array, tileSize);
 			context.putImageData(imageData, this.x, this.y);
@@ -167,6 +184,7 @@
 			await drawWithPixelSizeAndMaxIterations(50, 4000);
 			await drawWithPixelSizeAndMaxIterations(10, 4000);
 			await drawWithPixelSizeAndMaxIterations(1, 4000);
+			await drawWithPixelSizeAndMaxIterations(1, 10000);
 		};
 		var zoomIn = function(clientX, clientY){
 			var scale = virtualWidth / width;
@@ -184,6 +202,7 @@
 		};
 		draw(0, 0, 4);
 		canvas.addEventListener("click", function(ev){
+			workerPool.cancelAll();
 			var clientX = ev.clientX * devicePixelRatio;
 			var clientY = ev.clientY * devicePixelRatio;
 			if(clientX < 40 || width - clientX < 40 || clientY < 40 || height - clientY < 40){
