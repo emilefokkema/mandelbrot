@@ -17,8 +17,7 @@
 		canvas.setAttribute("height", height);
 		var context = canvas.getContext("2d");
 		var workerFn = (function(postMessage, onmessage){
-			return function(size){
-				var length = 4 * size * size;
+			return function(){
 				var escapeStep = function(maxIt, x, y){
 					var zrn, zin, zr = 0, zi = 0, cr = x, ci = y, step = 0, modsq = 0;
 					while(modsq < 4 && step++ < maxIt){
@@ -37,7 +36,7 @@
 					var lightness = st.modsq < 4 ? 0 : 175 * (1 + Math.sin(normalizedStep / 20));
 					return {r: lightness, g: lightness, b: lightness, a: 255};
 				};
-				var drawPixelWithColor = function(array, x, y, pixelSize, rgba){
+				var drawPixelWithColor = function(array, x, y, size, pixelSize, rgba){
 					var left = x * pixelSize;
 					var top = y * size * pixelSize;
 					for(var yy = 0; yy < pixelSize; yy++){
@@ -56,16 +55,17 @@
 					var origY = data.origY;
 					var scaleX = data.scaleX;
 					var scaleY = data.scaleY;
+					var size = data.size;
 					var pixelSize = data.pixelSize;
 					var maxIterations = data.maxIterations;
-					var array = new Uint8ClampedArray(length);
+					var array = new Uint8ClampedArray(4 * size * size);
 					var numberOfPixels = size / pixelSize;
 					for(var tileY = 0;tileY < numberOfPixels; tileY+=1){
 						for(var tileX = 0; tileX < numberOfPixels; tileX+=1){
 							var realX = origX + (tileX + 0.5) * pixelSize * scaleX;
 							var realY = origY + (tileY + 0.5) * pixelSize * scaleY;
 							var rgba = getRgba(realX, realY, maxIterations);
-							drawPixelWithColor(array, tileX, tileY, pixelSize, rgba);
+							drawPixelWithColor(array, tileX, tileY, size, pixelSize, rgba);
 						}
 					}
 					postMessage({response: array.buffer, callId: m.data.callId}, [array.buffer]);
@@ -80,7 +80,7 @@
 			this.currentCallId = undefined;
 			this.onResponse = function(){};
 			this.busy = false;
-			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+tileSize+')'], {type: "application/javascript"})));
+			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')()'], {type: "application/javascript"})));
 			this.worker.onmessage = function(m){
 				if(m.data.callId !== self.currentCallId){
 					return;
@@ -144,47 +144,39 @@
 			this.y = y;
 			this.workerPool = workerPool;
 		};
-		Tile.prototype.draw = async function(origX, origY, scaleX, scaleY, pixelSize, maxIterations){
-			var job = this.workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY, pixelSize: pixelSize, maxIterations: maxIterations});
+		Tile.prototype.draw = async function(origX, origY, scaleX, scaleY, size, pixelSize, maxIterations){
+			var job = this.workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY, size:size, pixelSize: pixelSize, maxIterations: maxIterations});
 			var arrayBuffer = await job.promise;
 			var array = new Uint8ClampedArray(arrayBuffer);
-			var imageData = new ImageData(array, tileSize);
+			var imageData = new ImageData(array, size);
 			context.putImageData(imageData, this.x, this.y);
 		};
 		var workerPool = new WorkerPool();
-		var nRows = Math.floor(height / tileSize) + 1;
-		var nCols = Math.floor(width / tileSize) + 1;
-		var tiles = [];
-		for(var i=0;i<nRows;i++){
-			var row = [];
-			tiles.push(row);
-			for(var j=0;j<nCols;j++){
-				var tile = new Tile(workerPool, j * tileSize, i * tileSize);
-				row.push(tile);
-			}
-		}
 		var centerX = 0;
 		var centerY = 0;
 		var virtualWidth = 4;
-		var drawWithPixelSizeAndMaxIterations = async function(pixelSize, maxIterations){
+		var drawWithPixelSizeAndMaxIterations = async function(size, pixelSize, maxIterations){
+			var nRows = Math.floor(height / size) + 1;
+			var nCols = Math.floor(width / size) + 1;
 			var scale = virtualWidth / width;
 			var virtualHeight = height * scale;
 			var left = centerX - virtualWidth / 2;
 			var top = centerY + virtualHeight / 2;
-			var virtualTileSize = tileSize * scale;
+			var virtualTileSize = size * scale;
 			var promises = [];
 			for(var i=0;i<nRows;i++){
 				for(var j=0;j<nCols;j++){
-					promises.push(tiles[i][j].draw(left + j * virtualTileSize, top - i * virtualTileSize, scale, -scale, pixelSize, maxIterations))
+					var tile = new Tile(workerPool, j * size, i * size);
+					promises.push(tile.draw(left + j * virtualTileSize, top - i * virtualTileSize, scale, -scale, size, pixelSize, maxIterations))
 				}
 			}
 			await Promise.all(promises);
 		};
 		var draw = async function(){
-			await drawWithPixelSizeAndMaxIterations(50, 4000);
-			await drawWithPixelSizeAndMaxIterations(10, 4000);
-			await drawWithPixelSizeAndMaxIterations(1, 4000);
-			await drawWithPixelSizeAndMaxIterations(1, 10000);
+			await drawWithPixelSizeAndMaxIterations(300, 50, 4000);
+			await drawWithPixelSizeAndMaxIterations(100, 10, 4000);
+			await drawWithPixelSizeAndMaxIterations(50, 1, 4000);
+			await drawWithPixelSizeAndMaxIterations(20, 1, 10000);
 		};
 		var zoomIn = function(clientX, clientY){
 			var scale = virtualWidth / width;
