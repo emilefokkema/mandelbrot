@@ -193,11 +193,12 @@
 			draw();
 		};
 		draw(0, 0, 4);
+		var borderWidth = Math.min(width / 6, height / 6);
 		canvas.addEventListener("click", function(ev){
 			workerPool.cancelAll();
 			var clientX = ev.clientX * devicePixelRatio;
 			var clientY = ev.clientY * devicePixelRatio;
-			if(clientX < 40 || width - clientX < 40 || clientY < 40 || height - clientY < 40){
+			if(clientX < borderWidth || width - clientX < borderWidth || clientY < borderWidth || height - clientY < borderWidth){
 				zoomOut();
 			}else{
 				zoomIn(clientX, clientY);
