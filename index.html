@@ -131,9 +131,9 @@
 				if(m.data.callId !== self.currentCallId){
 					return;
 				}
-				self.onResponse(m.data.response);
 				self.busy = false;
 				self.currentCallId = undefined;
+				self.onResponse(m.data.response);
 			}
 		};
 		WorkerWrapper.prototype.postMessage = function(message, onResponse){
