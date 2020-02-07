@@ -185,17 +185,12 @@
 			this.executeNextJob();
 			return job;
 		};
-		var Tile = function(workerPool, x, y){
-			this.x = x;
-			this.y = y;
-			this.workerPool = workerPool;
-		};
-		Tile.prototype.draw = async function(origX, origY, scaleX, scaleY, size, pixelSize, maxIterations){
-			var job = this.workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY, size:size, pixelSize: pixelSize, maxIterations: maxIterations});
+		var drawTile = async function(x, y, workerPool, origX, origY, scaleX, scaleY, size, pixelSize, maxIterations){
+			var job = workerPool.createJob({origX: origX, origY: origY, scaleX: scaleX, scaleY: scaleY, size:size, pixelSize: pixelSize, maxIterations: maxIterations});
 			var arrayBuffer = await job.promise;
 			var array = new Uint8ClampedArray(arrayBuffer);
 			var imageData = new ImageData(array, size);
-			context.putImageData(imageData, this.x, this.y);
+			context.putImageData(imageData, x, y);
 		};
 		var workerPool = new WorkerPool();
 		var centerX = 0;
@@ -210,19 +205,25 @@
 			var top = centerY + virtualHeight / 2;
 			var virtualTileSize = size * scale;
 			var promises = [];
+			var indices = [];
 			for(var i=0;i<nRows;i++){
 				for(var j=0;j<nCols;j++){
-					var tile = new Tile(workerPool, j * size, i * size);
-					promises.push(tile.draw(left + j * virtualTileSize, top - i * virtualTileSize, scale, -scale, size, pixelSize, maxIterations))
+					indices.push({i:i, j:j})
 				}
+			}
+			while(indices.length > 0){
+				var ij = indices.splice(Math.floor(Math.random() * indices.length), 1)[0];
+				var i = ij.i;
+				var j = ij.j;
+				promises.push(drawTile(j * size, i * size, workerPool, left + j * virtualTileSize, top - i * virtualTileSize, scale, -scale, size, pixelSize, maxIterations))
+
 			}
 			await Promise.all(promises);
 		};
 		var draw = async function(){
-			await drawWithPixelSizeAndMaxIterations(300, 50, 4000);
-			await drawWithPixelSizeAndMaxIterations(100, 10, 4000);
-			await drawWithPixelSizeAndMaxIterations(50, 1, 4000);
-			await drawWithPixelSizeAndMaxIterations(20, 1, 10000);
+			await drawWithPixelSizeAndMaxIterations(600, 75, 4000);
+			await drawWithPixelSizeAndMaxIterations(300, 1, 4000);
+			await drawWithPixelSizeAndMaxIterations(300, 1, 10000);
 		};
 		var zoomIn = function(clientX, clientY){
 			var scale = virtualWidth / width;
