@@ -1,0 +1,71 @@
+<html>
+	<head>
+		<script type="text/javascript" src="parallel-processor.js"></script>
+	</head>
+<body>
+	<canvas width="500" height="500" id="canvas"></canvas>
+	<script>
+		(function(){
+			var canvas = document.getElementById("canvas");
+			var context = canvas.getContext("2d");
+			var blockSize = 50;
+			var useNoise = false;
+			var currentCancellationToken = undefined;
+			var processor = new ParallelProcessor(10, "(" + (function(){
+				var blockSize, useNoise;
+				process = function(req){
+					var array = new Uint8ClampedArray(4 * blockSize * blockSize);
+					for(var i=0;i<blockSize;i++){
+						for(var j=0;j<blockSize;j++){
+							var x = req.x + j;
+							var y = req.y + i;
+							var x1 = x + 50 * Math.sin(y / 5);
+							var y1 = y;
+							var redIndex = 4 * blockSize * i + 4 * j;
+							var dx = 250 - x1;
+							var dy = 250 - y1;
+							var redValue = 255 * (1 / (1 + Math.sqrt(dx * dx + dy * dy) / 40));
+							array[redIndex] = redValue + (useNoise ? Math.random() * 50 : 0);
+							array[redIndex + 1] = useNoise ? Math.random() * 50 : 0;
+							array[redIndex + 2] = useNoise ? Math.random() * 50 : 0;
+							array[redIndex + 3] = 255;
+						}
+					}
+					return array.buffer;
+				};
+				update = function(_blockSize, _useNoise){
+					blockSize = _blockSize;
+					useNoise = _useNoise;
+				};		
+			}).toString() + ")()");
+
+			var draw = async function(x, y){
+				var buffer = await processor.process({x: x, y: y}, currentCancellationToken);
+				var array = new Uint8ClampedArray(buffer);
+				var imageData = new ImageData(array, blockSize);
+				context.putImageData(imageData, x, y);
+			};
+
+			var drawAll = async function(){
+				if(currentCancellationToken){
+					currentCancellationToken.cancel();
+				}
+				context.clearRect(0, 0, 500, 500);
+				await processor.update(blockSize, useNoise);
+				currentCancellationToken = processor.getCancellationToken();
+				var columns = Math.ceil(500 / blockSize);
+				var rows = Math.ceil(500 / blockSize);
+				for(var i=0;i<columns;i++){
+					for(var j=0;j<columns;j++){
+						draw(blockSize * i, blockSize * j);
+					}
+				}
+				useNoise = !useNoise;
+			};
+
+			drawAll();
+			canvas.addEventListener("click", drawAll)
+		})();
+	</script>
+</body>
+</html>
