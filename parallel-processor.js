@@ -43,9 +43,20 @@ var ParallelProcessor = (function(){
 
 	class ParallelProcessorWorker{
 		constructor(instruction){
-			var self = this;
-			this.initialized = false;
+			this.latestUpdateArgs = [];
 			this.instruction = instruction;
+			this.createWorker();
+			this.busy = false;
+			this.latestRequestId = undefined;
+			this.latestCancellationToken = undefined;
+			this.requestCounter = 0;
+			this.settingInstruction = false;
+			this.updating = false;
+			this.resolveLatestPromise = function(){};
+			this.rejectLatestPromise = function(){};
+		}
+		createWorker(){
+			var self = this;
 			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')()'], {type: "application/javascript"})));
 			this.worker.onmessage = function(e){
 				var data = e.data;
@@ -63,6 +74,7 @@ var ParallelProcessor = (function(){
 					self.rejectLatestPromise(data.instructionError);
 				}else if(data.result){
 					if(!self.busy || self.latestRequestId !== data.id){
+						console.log("not resolving after message from worker");
 						return;
 					}
 					self.busy = false;
@@ -87,14 +99,7 @@ var ParallelProcessor = (function(){
 					self.resolveLatestPromise();
 				}
 			};
-			this.busy = false;
-			this.latestRequestId = undefined;
-			this.latestCancellationToken = undefined;
-			this.requestCounter = 0;
-			this.settingInstruction = false;
-			this.updating = false;
-			this.resolveLatestPromise = function(){};
-			this.rejectLatestPromise = function(){};
+			this.initialized = false;
 		}
 		getPromise(){
 			var self = this;
@@ -104,8 +109,11 @@ var ParallelProcessor = (function(){
 			});
 		}
 		cancelCurrentRequest(){
+			console.log("cancelling current request");
 			this.latestRequestId = undefined;
 			this.busy = false;
+			this.worker.terminate();
+			this.createWorker();
 		}
 		async initialize(){
 			if(this.initialized){
@@ -115,25 +123,31 @@ var ParallelProcessor = (function(){
 			var promise = this.getPromise();
 			this.worker.postMessage({instruction: this.instruction});
 			await promise;
+			if(this.latestUpdateArgs.length > 0){
+				await this.sendLatestUpdateArgs();
+			}
 			this.initialized = true;
 		}
-		async update(){
-			await this.initialize();
+		async sendLatestUpdateArgs(){
 			this.updating = true;
-			var args = Array.prototype.slice.apply(arguments);
 			var promise = this.getPromise();
-			this.worker.postMessage({update: args});
+			this.worker.postMessage({update: this.latestUpdateArgs});
 			await promise;
+		}
+		async update(){
+			this.latestUpdateArgs = Array.prototype.slice.apply(arguments);
+			await this.initialize();
+			await this.sendLatestUpdateArgs();
 		}
 		async process(request){
 			this.busy = true;
 			await this.initialize();
 			var self = this;
-			
 			this.latestRequestId = this.requestCounter++;
 			this.latestCancellationToken = request.cancellationToken;
+			var cancel = function(){self.cancelCurrentRequest();};
 			if(request.cancellationToken){
-				request.cancellationToken.onCancelled(function(){self.cancelCurrentRequest();});
+				request.cancellationToken.onCancelled(function(){cancel();});
 			}
 			var resultPromise = this.getPromise();
 			this.worker.postMessage({request: {payload: request.payload, id: this.latestRequestId}});
@@ -142,6 +156,8 @@ var ParallelProcessor = (function(){
 				request.resolve(result);
 			}catch(e){
 				request.reject(e);
+			}finally{
+				cancel = function(){};
 			}
 		}
 	}
@@ -213,6 +229,7 @@ var ParallelProcessor = (function(){
 				request = new Request(payload, res, rej, cancellationToken);
 			});
 			this.requests.push(request);
+
 			this.processNext();
 			return promise;
 		}

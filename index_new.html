@@ -124,10 +124,16 @@
 		var centerX = 0;
 		var centerY = 0;
 		var virtualWidth = 4;
+		var latestClickDate = undefined;
 		var drawTile = async function(x, y, origX, origY, size, cancellationToken){
 			var buffer = await processor.process({origX: origX, origY: origY}, cancellationToken);
 			var array = new Uint8ClampedArray(buffer);
 			var imageData = new ImageData(array, size);
+			if(latestClickDate !== undefined){
+				var diff = +new Date() - latestClickDate;
+				latestClickDate = undefined;
+				console.log("drawing after "+diff+" ms");
+			}
 			context.putImageData(imageData, x, y);
 		};
 		var drawWithPixelSizeAndMaxIterations = async function(size, pixelSize, maxIterations, cancellationToken){
@@ -182,9 +188,11 @@
 			draw();
 		};
 		draw();
+		
 		var borderWidth = Math.min(width / 6, height / 6);
 		canvas.addEventListener("click", function(ev){
-			console.log("click")
+			console.log("click");
+			latestClickDate = +new Date();
 			currentCancellationToken.cancel();
 			currentCancellationToken = processor.getCancellationToken();
 			var clientX = ev.clientX * devicePixelRatio;
