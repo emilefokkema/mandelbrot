@@ -6,6 +6,7 @@
 			#container{}
 			#left{display: inline-block;height:100%;}
 			#right{display: inline-block;vertical-align: top;}
+			#valueMarker{position:absolute;top:0px;width:1px;height: 100%;background-color: #f00;}
 		</style>
 	</head>
 <body>
@@ -15,9 +16,11 @@
 		</div>
 		<div id="right">
 			<canvas id="bifurcationDiagram"></canvas>
+			<div id="decrease">decrease</div>
+			<div id="increase">increase</div>
 		</div>
 	</div>
-	
+	<div id="valueMarker"></div>
 	
 	<script>
 		(function(){
@@ -52,7 +55,7 @@
 				var bifurcationDiagramCanvas = document.getElementById("bifurcationDiagram");
 				var bifurcationDiagramWidth = window.innerWidth - height - 10;
 				bifurcationDiagramCanvas.style.width = bifurcationDiagramWidth + "px";
-				bifurcationDiagramCanvas.style.height = (bifurcationDiagramWidth / 2) + "px";
+				bifurcationDiagramCanvas.style.height = (bifurcationDiagramWidth * 0.75) + "px";
 			};
 
 			divideVertically();
@@ -73,6 +76,7 @@
 			};
 			var setRelativeValue = function(relativeValue){
 				scaleWithValue.setRelativeValue(relativeValue);
+				bifurcationDiagram.setMarkerAtRelativeValue(relativeValue);
 				handleChange();
 			};
 
@@ -116,8 +120,10 @@
 			})();
 
 			bifurcationDiagram = (function(){
+				var valueMarker = document.getElementById("valueMarker");
 				var canvas = document.getElementById("bifurcationDiagram");
 				var rect = canvas.getBoundingClientRect();
+				valueMarker.style.height = rect.height + "px";
 				var width = Math.ceil(rect.width * devicePixelRatio), height = Math.ceil(rect.height * devicePixelRatio);
 				var canvasX = rect.x;
 				canvas.setAttribute("width", width);
@@ -187,6 +193,10 @@
 					context.putImageData(imageData, x, 0);
 				};
 
+				var setMarkerAtRelativeValue = function(relativeValue){
+					valueMarker.style.left = (rect.x + rect.width * relativeValue) + "px";
+				};
+
 				var drawAll = async function(){
 					if(currentCancellationToken){
 						currentCancellationToken.cancel();
@@ -228,12 +238,25 @@
 					drawAll();
 				});
 
-
+				return {
+					setMarkerAtRelativeValue: setMarkerAtRelativeValue
+				};
 			})();
 
 			valueSlider = (function(){
 				var relativeValue = 0.5;
-				setRelativeValue(relativeValue);
+				var setValue = function(){
+					setRelativeValue(relativeValue);
+				};
+				document.getElementById("decrease").addEventListener("click", function(){
+					relativeValue = Math.max(0, relativeValue - 0.01);
+					setValue();
+				});
+				document.getElementById("increase").addEventListener("click", function(){
+					relativeValue = Math.min(1, relativeValue + 0.01);
+					setValue();
+				});
+				setValue();
 			})();
 		})();
 	</script>
