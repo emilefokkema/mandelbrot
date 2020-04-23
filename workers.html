@@ -2,125 +2,239 @@
 	<head>
 		<script type="text/javascript" src="parallel-processor.js"></script>
 		<style type="text/css">
-			body{padding:0px;margin:0px;}
-			canvas{width:100%;height:100%;}
+			body{padding:0px;margin:0px;overflow: hidden;}
+			#container{}
+			#left{display: inline-block;height:100%;}
+			#right{display: inline-block;vertical-align: top;}
 		</style>
 	</head>
 <body>
-	<canvas id="canvas"></canvas>
+	<div id="container">
+		<div id="left">
+			<canvas id="cobweb"></canvas>
+		</div>
+		<div id="right">
+			<canvas id="bifurcationDiagram"></canvas>
+		</div>
+	</div>
+	
+	
 	<script>
 		(function(){
-			var canvas = document.getElementById("canvas");
-			var rect = canvas.getBoundingClientRect();
-			var width = rect.width * devicePixelRatio, height = rect.height * devicePixelRatio;
-			canvas.setAttribute("width", width);
-			canvas.setAttribute("height", height);
-			var context = canvas.getContext("2d");
-			var sliceWidth = 10;
-			var currentCancellationToken = undefined;
-			var coordsMinX = 0;
-			var coordsMaxX = 4;
-			var coordsMinY = 0;
-			var coordsMaxY = 5 * height / width;
-			var processor = new ParallelProcessor(10, "(" + (function(){
-				var sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height;
-				var getCoordsX = function(x){
-					return coordsMinX + (coordsMaxX - coordsMinX) * x / width;
-				};
-				var getRealY = function(y){
-					return Math.floor(height * (coordsMaxY - y) / (coordsMaxY - coordsMinY));
-				};
-				var getArrayIndexForPoint = function(x, y){
-					return 4 * sliceWidth * y + 4 * x;
-				};
-				var colorPoint = function(x, y, array){
-					if(x >= 0 && x < sliceWidth && y >= 0 && y < height){
-						var index = getArrayIndexForPoint(x, y);
-						array[index + 3] += 10;
+			class ScaleWithValue{
+				constructor(){
+					this._relativeValue = undefined;
+					this._value = undefined;
+					this._scaleStart = undefined;
+					this._scaleEnd = undefined;
+				}
+				get value(){return this._value;}
+				setScale(start, end){
+					if(this._relativeValue !== undefined){
+						this._value = start + this._relativeValue * (end - start);
 					}
-				};
-				var displayValue = function(value, x, array){
-					var realY = getRealY(value);
-					colorPoint(x, realY, array);
-					colorPoint(x, realY + 1, array);
-					colorPoint(x, realY - 1, array);
-				};
-				var drawPointsForX = function(sliceStart, x, array){
-					var coordsX = getCoordsX(sliceStart + x);
-					var value = 0.1;
+					this._scaleStart = start;
+					this._scaleEnd = end;
+				}
+				setRelativeValue(relativeValue){
+					if(this._scaleStart !== undefined){
+						this._value = this._scaleStart + (this._scaleEnd - this._scaleStart) * relativeValue;
+					}
+					this._relativeValue = relativeValue;
+				}
+			}
+
+			var divideVertically = function(){
+				var height = window.innerHeight;
+				var cobwebCanvas = document.getElementById("cobweb");
+				cobwebCanvas.style.height = height + "px";
+				cobwebCanvas.style.width = height + "px";
+				var bifurcationDiagramCanvas = document.getElementById("bifurcationDiagram");
+				var bifurcationDiagramWidth = window.innerWidth - height - 10;
+				bifurcationDiagramCanvas.style.width = bifurcationDiagramWidth + "px";
+				bifurcationDiagramCanvas.style.height = (bifurcationDiagramWidth / 2) + "px";
+			};
+
+			divideVertically();
+
+			var bifurcationDiagram;
+			var valueSlider;
+			var cobweb;
+			var scaleWithValue = new ScaleWithValue();
+			var handleChange = function(){
+				var newValue = scaleWithValue.value;
+				if(newValue !== undefined){
+					cobweb.drawWithValue(newValue);
+				}
+			};
+			var setScale = function(start, end){
+				scaleWithValue.setScale(start, end);
+				handleChange();
+			};
+			var setRelativeValue = function(relativeValue){
+				scaleWithValue.setRelativeValue(relativeValue);
+				handleChange();
+			};
+
+			cobweb = (function(){
+				var canvas = document.getElementById("cobweb");
+				var ctx = canvas.getContext("2d");
+				var rect = canvas.getBoundingClientRect();
+				var width = rect.width * devicePixelRatio, height = rect.height * devicePixelRatio;
+				canvas.setAttribute("width", width);
+				canvas.setAttribute("height", height);
+				var drawWithValue = function(r){
+					ctx.clearRect(0, 0, width, height);
+					ctx.save();
+					ctx.beginPath();
+					ctx.moveTo(0, height);
+					ctx.quadraticCurveTo(height / 2, height * (1 - r / 2), height, height);
+					ctx.moveTo(0, height);
+					ctx.lineTo(height, 0);
+					ctx.stroke();
+
+					var value = 0.5;
+					var hue = 0;
+					ctx.strokeStyle = "#00f";
+					ctx.beginPath();
 					var counter = 0;
 					while(counter < 20000){
-						if(counter > 10000){
-							displayValue(value, x, array);
-						}
-						value = coordsX * value * (1 - value);
+						ctx.strokeStyle = "hsla("+hue+",100%,50%,0.2)";
+						ctx.beginPath();
+						ctx.moveTo(value * height, (1 - value) * height);
+						var newValue = r * value * (1 - value);
+						ctx.lineTo(value * height, (1 - newValue) * height);
+						ctx.lineTo(newValue * height, (1 - newValue) * height);
+						ctx.stroke();
+						value = newValue;
+						hue += 0.03;
 						counter++;
 					}
+					ctx.restore();
 				};
-				process = function(req){
-					var array = new Uint8ClampedArray(4 * sliceWidth * height);
-					for(var x = 0; x < sliceWidth; x++){
-						drawPointsForX(req.x, x, array);
+				return {drawWithValue: drawWithValue};
+			})();
+
+			bifurcationDiagram = (function(){
+				var canvas = document.getElementById("bifurcationDiagram");
+				var rect = canvas.getBoundingClientRect();
+				var width = Math.ceil(rect.width * devicePixelRatio), height = Math.ceil(rect.height * devicePixelRatio);
+				var canvasX = rect.x;
+				canvas.setAttribute("width", width);
+				canvas.setAttribute("height", height);
+				var context = canvas.getContext("2d");
+				var sliceWidth = 10;
+				var currentCancellationToken = undefined;
+				var coordsMinX = 0;
+				var coordsMaxX = 4;
+				var coordsMinY = 0;
+				var coordsMaxY = 4 * height / width;
+				var processor = new ParallelProcessor(10, "(" + (function(){
+					var sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height;
+					var getCoordsX = function(x){
+						return coordsMinX + (coordsMaxX - coordsMinX) * x / width;
+					};
+					var getRealY = function(y){
+						return Math.floor(height * (coordsMaxY - y) / (coordsMaxY - coordsMinY));
+					};
+					var getArrayIndexForPoint = function(x, y){
+						return 4 * sliceWidth * y + 4 * x;
+					};
+					var colorPoint = function(x, y, array){
+						if(x >= 0 && x < sliceWidth && y >= 0 && y < height){
+							var index = getArrayIndexForPoint(x, y);
+							array[index + 3] += 10;
+						}
+					};
+					var displayValue = function(value, x, array){
+						var realY = getRealY(value);
+						colorPoint(x, realY, array);
+					};
+					var drawPointsForX = function(sliceStart, x, array){
+						var coordsX = getCoordsX(sliceStart + x);
+						var value = 0.1;
+						var counter = 0;
+						while(counter < 20000){
+							if(counter > 10000){
+								displayValue(value, x, array);
+							}
+							value = coordsX * value * (1 - value);
+							counter++;
+						}
+					};
+					process = function(req){
+						var array = new Uint8ClampedArray(4 * sliceWidth * height);
+						for(var x = 0; x < sliceWidth; x++){
+							drawPointsForX(req.x, x, array);
+						}
+						return array.buffer;
+					};
+					update = function(_sliceWidth, _coordsMinX, _coordsMinY, _coordsMaxX, _coordsMaxY, _width, _height){
+						sliceWidth = _sliceWidth;
+						coordsMinX = _coordsMinX;
+						coordsMinY = _coordsMinY;
+						coordsMaxX = _coordsMaxX;
+						coordsMaxY = _coordsMaxY;
+						width = _width;
+						height = _height;
+					};		
+				}).toString() + ")()");
+
+				var drawSlice = async function(x, cancellationToken){
+					var buffer = await processor.process({x: x}, cancellationToken);
+					var array = new Uint8ClampedArray(buffer);
+					var imageData = new ImageData(array, sliceWidth);
+					context.putImageData(imageData, x, 0);
+				};
+
+				var drawAll = async function(){
+					if(currentCancellationToken){
+						currentCancellationToken.cancel();
 					}
-					return array.buffer;
+					context.clearRect(0, 0, width, height);
+					setScale(coordsMinX, coordsMaxX);
+					await processor.update(sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height);
+					currentCancellationToken = processor.getCancellationToken();
+					var numberOfSlices = Math.ceil(width / sliceWidth);
+					for(var i=0;i<numberOfSlices;i++){
+						drawSlice(i * sliceWidth, currentCancellationToken);
+					}
 				};
-				update = function(_sliceWidth, _coordsMinX, _coordsMinY, _coordsMaxX, _coordsMaxY, _width, _height){
-					sliceWidth = _sliceWidth;
-					coordsMinX = _coordsMinX;
-					coordsMinY = _coordsMinY;
-					coordsMaxX = _coordsMaxX;
-					coordsMaxY = _coordsMaxY;
-					width = _width;
-					height = _height;
-				};		
-			}).toString() + ")()");
 
-			var drawSlice = async function(x, cancellationToken){
-				var buffer = await processor.process({x: x}, cancellationToken);
-				var array = new Uint8ClampedArray(buffer);
-				var imageData = new ImageData(array, sliceWidth);
-				context.putImageData(imageData, x, 0);
-			};
-
-			var drawAll = async function(){
-				if(currentCancellationToken){
-					currentCancellationToken.cancel();
-				}
-				context.clearRect(0, 0, width, height);
-				await processor.update(sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height);
-				currentCancellationToken = processor.getCancellationToken();
-				var numberOfSlices = Math.ceil(width / sliceWidth);
-				for(var i=0;i<numberOfSlices;i++){
-					drawSlice(i * sliceWidth, currentCancellationToken);
-				}
-			};
-
-			drawAll();
-
-			var borderWidth = Math.min(width / 6, height / 6);
-			canvas.addEventListener("click", function(e){
-				var realX = e.clientX * devicePixelRatio;
-				var realY = e.clientY * devicePixelRatio;
-				var coordsWidth = coordsMaxX - coordsMinX;
-				var coordsHeight = coordsMaxY - coordsMinY;
-				if(realX < borderWidth || width - realX < borderWidth || realY < borderWidth || height - realY < borderWidth){
-					var xMiddle = (coordsMaxX + coordsMinX) / 2;
-					var yMiddle = (coordsMaxY + coordsMinY) / 2;
-					coordsMinX = xMiddle - coordsWidth;
-					coordsMaxX = xMiddle + coordsWidth;
-					coordsMinY = yMiddle - coordsHeight;
-					coordsMaxY = yMiddle + coordsHeight;
-				}else{
-					var coordsX = coordsMinX + coordsWidth * realX / width;
-					var coordsY = coordsMaxY - coordsHeight * realY / height;
-					coordsMinX = coordsX - coordsWidth / 4;
-					coordsMaxX = coordsX + coordsWidth / 4;
-					coordsMinY = coordsY - coordsHeight / 4;
-					coordsMaxY = coordsY + coordsHeight / 4;
-				}
-				
 				drawAll();
-			});
+
+				var borderWidth = Math.min(width / 6, height / 6);
+				canvas.addEventListener("click", function(e){
+					var realX = (e.clientX - canvasX) * devicePixelRatio;
+					var realY = e.clientY * devicePixelRatio;
+					var coordsWidth = coordsMaxX - coordsMinX;
+					var coordsHeight = coordsMaxY - coordsMinY;
+					if(realX < borderWidth || width - realX < borderWidth || realY < borderWidth || height - realY < borderWidth){
+						var xMiddle = (coordsMaxX + coordsMinX) / 2;
+						var yMiddle = (coordsMaxY + coordsMinY) / 2;
+						coordsMinX = xMiddle - coordsWidth;
+						coordsMaxX = xMiddle + coordsWidth;
+						coordsMinY = yMiddle - coordsHeight;
+						coordsMaxY = yMiddle + coordsHeight;
+					}else{
+						var coordsX = coordsMinX + coordsWidth * realX / width;
+						var coordsY = coordsMaxY - coordsHeight * realY / height;
+						coordsMinX = coordsX - coordsWidth / 4;
+						coordsMaxX = coordsX + coordsWidth / 4;
+						coordsMinY = coordsY - coordsHeight / 4;
+						coordsMaxY = coordsY + coordsHeight / 4;
+					}
+					
+					drawAll();
+				});
+
+
+			})();
+
+			valueSlider = (function(){
+				var relativeValue = 0.5;
+				setRelativeValue(relativeValue);
+			})();
 		})();
 	</script>
 </body>
