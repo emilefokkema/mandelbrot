@@ -137,6 +137,7 @@
 				var coordsMaxY = 4 * height / width;
 				var processor = new ParallelProcessor(10, "(" + (function(){
 					var sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height;
+					var pointWidth;
 					var getCoordsX = function(x){
 						return coordsMinX + (coordsMaxX - coordsMinX) * x / width;
 					};
@@ -149,7 +150,7 @@
 					var colorPoint = function(x, y, array){
 						if(x >= 0 && x < sliceWidth && y >= 0 && y < height){
 							var index = getArrayIndexForPoint(x, y);
-							array[index + 3] += 10;
+							array[index + 3] += pointWidth;
 						}
 					};
 					var displayValue = function(value, x, array){
@@ -183,6 +184,7 @@
 						coordsMaxY = _coordsMaxY;
 						width = _width;
 						height = _height;
+						pointWidth = 5 + 250 * (1 / (1 + Math.pow(60 * (coordsMaxY - coordsMinY), 2)));
 					};		
 				}).toString() + ")()");
 
