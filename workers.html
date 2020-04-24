@@ -160,8 +160,8 @@
 						var coordsX = getCoordsX(sliceStart + x);
 						var value = 0.1;
 						var counter = 0;
-						while(counter < 20000){
-							if(counter > 10000){
+						while(counter < 40000){
+							if(counter > 5000){
 								displayValue(value, x, array);
 							}
 							value = coordsX * value * (1 - value);
