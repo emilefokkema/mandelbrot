@@ -3,21 +3,25 @@
 		<script type="text/javascript" src="parallel-processor.js"></script>
 		<style type="text/css">
 			body{padding:0px;margin:0px;overflow: hidden;}
-			#container{}
+			#container{height:100%;}
 			#left{display: inline-block;height:100%;}
-			#right{display: inline-block;vertical-align: top;}
-			#valueMarker{position:absolute;top:0px;width:1px;height: 100%;background-color: #f00;}
+			#right{display: inline-block;height:100%;}
+			#valueMarker{position:absolute;bottom:0px;width:1px;background-color: #f00;}
+			#controls{position:absolute;right:20px;bottom:20px;padding:20px;background-color: #fff;border: 1pt solid #000;}
 		</style>
 	</head>
 <body>
+
 	<div id="container">
 		<div id="left">
 			<canvas id="cobweb"></canvas>
 		</div>
 		<div id="right">
 			<canvas id="bifurcationDiagram"></canvas>
-			<div id="decrease">decrease</div>
-			<div id="increase">increase</div>
+			<div id="controls">
+				<div id="decrease">decrease</div>
+				<div id="increase">increase</div>
+			</div>
 		</div>
 	</div>
 	<div id="valueMarker"></div>
@@ -55,7 +59,7 @@
 				var bifurcationDiagramCanvas = document.getElementById("bifurcationDiagram");
 				var bifurcationDiagramWidth = window.innerWidth - height - 10;
 				bifurcationDiagramCanvas.style.width = bifurcationDiagramWidth + "px";
-				bifurcationDiagramCanvas.style.height = (bifurcationDiagramWidth * 0.75) + "px";
+				bifurcationDiagramCanvas.style.height = height + "px";
 			};
 
 			divideVertically();
@@ -119,7 +123,7 @@
 				return {drawWithValue: drawWithValue};
 			})();
 
-			bifurcationDiagram = (function(){
+			bifurcationDiagram = (function(scaleWithValue){
 				var valueMarker = document.getElementById("valueMarker");
 				var canvas = document.getElementById("bifurcationDiagram");
 				var rect = canvas.getBoundingClientRect();
@@ -134,7 +138,7 @@
 				var coordsMinX = 0;
 				var coordsMaxX = 4;
 				var coordsMinY = 0;
-				var coordsMaxY = 4 * height / width;
+				var coordsMaxY = 1;
 				var processor = new ParallelProcessor(10, "(" + (function(){
 					var sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height;
 					var pointWidth;
@@ -219,22 +223,13 @@
 				canvas.addEventListener("click", function(e){
 					var realX = (e.clientX - canvasX) * devicePixelRatio;
 					var realY = e.clientY * devicePixelRatio;
-					var coordsWidth = coordsMaxX - coordsMinX;
-					var coordsHeight = coordsMaxY - coordsMinY;
+					var currentValue = scaleWithValue.value;
 					if(realX < borderWidth || width - realX < borderWidth || realY < borderWidth || height - realY < borderWidth){
-						var xMiddle = (coordsMaxX + coordsMinX) / 2;
-						var yMiddle = (coordsMaxY + coordsMinY) / 2;
-						coordsMinX = xMiddle - coordsWidth;
-						coordsMaxX = xMiddle + coordsWidth;
-						coordsMinY = yMiddle - coordsHeight;
-						coordsMaxY = yMiddle + coordsHeight;
+						coordsMinX = currentValue - (currentValue - coordsMinX) * 2;
+						coordsMaxX = currentValue + (coordsMaxX - currentValue) * 2;
 					}else{
-						var coordsX = coordsMinX + coordsWidth * realX / width;
-						var coordsY = coordsMaxY - coordsHeight * realY / height;
-						coordsMinX = coordsX - coordsWidth / 4;
-						coordsMaxX = coordsX + coordsWidth / 4;
-						coordsMinY = coordsY - coordsHeight / 4;
-						coordsMaxY = coordsY + coordsHeight / 4;
+						coordsMinX = currentValue - (currentValue - coordsMinX) / 2;
+						coordsMaxX = currentValue + (coordsMaxX - currentValue) / 2;
 					}
 					
 					drawAll();
@@ -243,7 +238,7 @@
 				return {
 					setMarkerAtRelativeValue: setMarkerAtRelativeValue
 				};
-			})();
+			})(scaleWithValue);
 
 			valueSlider = (function(){
 				var relativeValue = 0.5;
