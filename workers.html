@@ -8,6 +8,7 @@
 			#right{display: inline-block;height:100%;}
 			#valueMarker{position:absolute;bottom:0px;width:1px;background-color: #f00;}
 			#controls{position:absolute;right:20px;bottom:20px;padding:20px;background-color: #fff;border: 1pt solid #000;}
+			.control{user-select: none;cursor:pointer;}
 		</style>
 	</head>
 <body>
@@ -19,8 +20,10 @@
 		<div id="right">
 			<canvas id="bifurcationDiagram"></canvas>
 			<div id="controls">
-				<div id="decrease">decrease</div>
-				<div id="increase">increase</div>
+				<div id="decrease" class="control">decrease</div>
+				<div id="increase" class="control">increase</div>
+				<div id="goleft" class="control">left</div>
+				<div id="goright" class="control">right</div>
 			</div>
 		</div>
 	</div>
@@ -29,25 +32,55 @@
 	<script>
 		(function(){
 			class ScaleWithValue{
-				constructor(){
-					this._relativeValue = undefined;
-					this._value = undefined;
-					this._scaleStart = undefined;
-					this._scaleEnd = undefined;
+				constructor(numberOfSteps){
+					this._stepIndex = undefined;
+					this.scaleStart = undefined;
+					this.scaleEnd = undefined;
+					this.numberOfSteps = numberOfSteps;
+					this.steps = [];
 				}
-				get value(){return this._value;}
+				get value(){
+					return this.steps ? this.steps[this._stepIndex] : undefined;
+				}
 				setScale(start, end){
-					if(this._relativeValue !== undefined){
-						this._value = start + this._relativeValue * (end - start);
-					}
-					this._scaleStart = start;
-					this._scaleEnd = end;
+					this.scaleStart = start;
+					this.scaleEnd = end;
+					this.createSteps();
 				}
-				setRelativeValue(relativeValue){
-					if(this._scaleStart !== undefined){
-						this._value = this._scaleStart + (this._scaleEnd - this._scaleStart) * relativeValue;
+				advanceStep(){
+					this._stepIndex = Math.min(this.numberOfSteps - 1, this._stepIndex + 1);
+				}
+				retreatStep(){
+					this._stepIndex = Math.max(0, this._stepIndex - 1);
+				}
+				moveScaleRight(){
+					var stepSize = this.getStepSize();
+					this.steps.splice(0, 1);
+					this.scaleStart = this.steps[0];
+					this.scaleEnd = this.scaleEnd + stepSize;
+					this.steps.push(this.scaleEnd);
+					console.log(JSON.stringify(this.steps))
+				}
+				moveScaleLeft(){
+					var stepSize = this.getStepSize();
+					this.steps.splice(this.numberOfSteps - 1, 1);
+					this.scaleEnd = this.steps[this.numberOfSteps - 2];
+					this.scaleStart -= stepSize;
+					this.steps.unshift(this.scaleStart);
+					console.log(JSON.stringify(this.steps))
+				}
+				getStepSize(){
+					return (this.scaleEnd - this.scaleStart) / (this.numberOfSteps - 1);
+				}
+				createSteps(){
+					this.steps = [];
+					var stepSize = this.getStepSize();
+					for(var i=0; i < this.numberOfSteps; i++){
+						this.steps.push(this.scaleStart + i * stepSize);
+					};
+					if(this._stepIndex === undefined){
+						this._stepIndex = Math.floor(this.numberOfSteps / 2);
 					}
-					this._relativeValue = relativeValue;
 				}
 			}
 
@@ -65,22 +98,37 @@
 			divideVertically();
 
 			var bifurcationDiagram;
-			var valueSlider;
+			var controls;
 			var cobweb;
-			var scaleWithValue = new ScaleWithValue();
+			var scaleWithValue = new ScaleWithValue(30);
 			var handleChange = function(){
 				var newValue = scaleWithValue.value;
 				if(newValue !== undefined){
 					cobweb.drawWithValue(newValue);
+					bifurcationDiagram.setMarkerAtValue(newValue);
+
 				}
 			};
 			var setScale = function(start, end){
 				scaleWithValue.setScale(start, end);
 				handleChange();
 			};
-			var setRelativeValue = function(relativeValue){
-				scaleWithValue.setRelativeValue(relativeValue);
-				bifurcationDiagram.setMarkerAtRelativeValue(relativeValue);
+			var advanceStep = function(){
+				scaleWithValue.advanceStep();
+				handleChange();
+			};
+			var retreatStep = function(){
+				scaleWithValue.retreatStep();
+				handleChange();
+			};
+			var moveScaleRight = function(){
+				scaleWithValue.moveScaleRight();
+				bifurcationDiagram.setStartAndEnd(scaleWithValue.scaleStart, scaleWithValue.scaleEnd);
+				handleChange();
+			};
+			var moveScaleLeft = function(){
+				scaleWithValue.moveScaleLeft();
+				bifurcationDiagram.setStartAndEnd(scaleWithValue.scaleStart, scaleWithValue.scaleEnd);
 				handleChange();
 			};
 
@@ -123,7 +171,7 @@
 				return {drawWithValue: drawWithValue};
 			})();
 
-			bifurcationDiagram = (function(scaleWithValue){
+			bifurcationDiagram = (function(scaleWithValue, setScale){
 				var valueMarker = document.getElementById("valueMarker");
 				var canvas = document.getElementById("bifurcationDiagram");
 				var rect = canvas.getBoundingClientRect();
@@ -199,7 +247,8 @@
 					context.putImageData(imageData, x, 0);
 				};
 
-				var setMarkerAtRelativeValue = function(relativeValue){
+				var setMarkerAtValue = function(value){
+					var relativeValue = (value - coordsMinX) / (coordsMaxX - coordsMinX);
 					valueMarker.style.left = (rect.x + rect.width * relativeValue) + "px";
 				};
 
@@ -217,44 +266,54 @@
 					}
 				};
 
-				drawAll();
+				var setStartAndEnd = function(start, end){
+					coordsMinX = start;
+					coordsMaxX = end;
+					drawAll();
+				};
+
+				setTimeout(drawAll, 0);
 
 				var borderWidth = Math.min(width / 6, height / 6);
+				canvas.addEventListener("contextmenu", function(e){
+					var realX = (e.clientX - canvasX) * devicePixelRatio;
+					var realY = e.clientY * devicePixelRatio;
+					var currentValue = scaleWithValue.value;
+					coordsMinX = currentValue - (currentValue - coordsMinX) * 2;
+					coordsMaxX = currentValue + (coordsMaxX - currentValue) * 2;
+					drawAll();
+					e.preventDefault();
+					return false;
+				});
 				canvas.addEventListener("click", function(e){
 					var realX = (e.clientX - canvasX) * devicePixelRatio;
 					var realY = e.clientY * devicePixelRatio;
 					var currentValue = scaleWithValue.value;
-					if(realX < borderWidth || width - realX < borderWidth || realY < borderWidth || height - realY < borderWidth){
-						coordsMinX = currentValue - (currentValue - coordsMinX) * 2;
-						coordsMaxX = currentValue + (coordsMaxX - currentValue) * 2;
-					}else{
-						coordsMinX = currentValue - (currentValue - coordsMinX) / 2;
-						coordsMaxX = currentValue + (coordsMaxX - currentValue) / 2;
-					}
-					
+					coordsMinX = currentValue - (currentValue - coordsMinX) / 2;
+					coordsMaxX = currentValue + (coordsMaxX - currentValue) / 2;
 					drawAll();
 				});
 
 				return {
-					setMarkerAtRelativeValue: setMarkerAtRelativeValue
+					setMarkerAtValue: setMarkerAtValue,
+					setStartAndEnd: setStartAndEnd
 				};
-			})(scaleWithValue);
+			})(scaleWithValue, setScale);
 
-			valueSlider = (function(){
-				var relativeValue = 0.5;
-				var setValue = function(){
-					setRelativeValue(relativeValue);
-				};
+			controls = (function(bifurcationDiagram){
 				document.getElementById("decrease").addEventListener("click", function(){
-					relativeValue = Math.max(0, relativeValue - 0.01);
-					setValue();
+					retreatStep();
 				});
 				document.getElementById("increase").addEventListener("click", function(){
-					relativeValue = Math.min(1, relativeValue + 0.01);
-					setValue();
+					advanceStep();
 				});
-				setValue();
-			})();
+				document.getElementById("goleft").addEventListener("click", function(){
+					moveScaleLeft();
+				});
+				document.getElementById("goright").addEventListener("click", function(){
+					moveScaleRight();
+				});
+			})(bifurcationDiagram);
 		})();
 	</script>
 </body>
