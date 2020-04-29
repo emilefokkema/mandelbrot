@@ -8,7 +8,7 @@
 			#right{display: inline-block;height:100%;}
 			#valueMarker{position:absolute;bottom:0px;width:1px;background-color: #f00;}
 			#controls{position:absolute;right:20px;bottom:20px;padding:20px;background-color: #fff;border: 1pt solid #000;}
-			.control{user-select: none;cursor:pointer;}
+			.control{user-select: none;cursor:pointer;display: inline-block;}
 		</style>
 	</head>
 <body>
@@ -19,15 +19,18 @@
 		</div>
 		<div id="right">
 			<canvas id="bifurcationDiagram"></canvas>
+			<div id="valueMarker"></div>
 			<div id="controls">
 				<div id="decrease" class="control">decrease</div>
 				<div id="increase" class="control">increase</div>
 				<div id="goleft" class="control">left</div>
 				<div id="goright" class="control">right</div>
+				<div id="zoomin" class="control">zoom in</div>
+				<div id="zoomout" class="control">zoom out</div>
 			</div>
 		</div>
 	</div>
-	<div id="valueMarker"></div>
+	
 	
 	<script>
 		(function(){
@@ -49,10 +52,25 @@
 					this.createSteps();
 				}
 				advanceStep(){
-					this._stepIndex = Math.min(this.numberOfSteps - 1, this._stepIndex + 1);
+					this._stepIndex = Math.min(this.steps.length - 1, this._stepIndex + 1);
 				}
 				retreatStep(){
 					this._stepIndex = Math.max(0, this._stepIndex - 1);
+				}
+				zoom(scale){
+					var newSteps = this.steps.slice();
+					var currentValue = this.steps[this._stepIndex];
+					for(var i=0;i<newSteps.length;i++){
+						if(i !== this._stepIndex){
+							newSteps[i] = currentValue + (newSteps[i] - currentValue) * scale;
+						}
+					}
+					this.steps = newSteps;
+					this.scaleStart = this.steps[0];
+					this.scaleEnd = this.steps[this.steps.length - 1];
+				}
+				goToValueClosestToRatio(ratio){
+					this._stepIndex = Math.floor((this.steps.length - 1) * ratio);
 				}
 				moveScaleRight(){
 					var stepSize = this.getStepSize();
@@ -63,22 +81,22 @@
 				}
 				moveScaleLeft(){
 					var stepSize = this.getStepSize();
-					this.steps.splice(this.numberOfSteps - 1, 1);
-					this.scaleEnd = this.steps[this.numberOfSteps - 2];
+					this.steps.splice(this.steps.length - 1, 1);
+					this.scaleEnd = this.steps[this.steps.length - 1];
 					this.scaleStart -= stepSize;
 					this.steps.unshift(this.scaleStart);
 				}
 				getStepSize(){
-					return (this.scaleEnd - this.scaleStart) / (this.numberOfSteps - 1);
+					return (this.scaleEnd - this.scaleStart) / (this.numberOfSteps);
 				}
 				createSteps(){
 					this.steps = [];
 					var stepSize = this.getStepSize();
-					for(var i=0; i < this.numberOfSteps; i++){
+					for(var i=0; i <= this.numberOfSteps; i++){
 						this.steps.push(this.scaleStart + i * stepSize);
 					};
 					if(this._stepIndex === undefined){
-						this._stepIndex = Math.floor(this.numberOfSteps / 2);
+						this._stepIndex = Math.floor(this.steps.length / 2);
 					}
 				}
 			}
@@ -135,11 +153,16 @@
 				doIt();
 			};
 			var zoomIn = function(){
-				var currentValue = scaleWithValue.value;
-				var newScaleStart = currentValue - (currentValue - scaleWithValue.scaleStart) / 2;
-				var newScaleEnd = currentValue + (scaleWithValue.scaleEnd - currentValue) / 2;
-				scaleWithValue.setScale(newScaleStart, newScaleEnd);
+				scaleWithValue.zoom(0.5);
 				doIt();
+			};
+			var zoomOut = function(){
+				scaleWithValue.zoom(2);
+				doIt();
+			};
+			var goToValueClosestToRatio = function(ratio){
+				scaleWithValue.goToValueClosestToRatio(ratio);
+				handleChange();
 			};
 
 			cobweb = (function(){
@@ -166,12 +189,12 @@
 						ctx.stroke();
 
 						var value = 0.5;
-						var hue = 0;
-						ctx.strokeStyle = "#00f";
-						ctx.beginPath();
+						//var hue = 0;
 						var counter = 0;
+						ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+						ctx.lineWidth = 0.2;
 						while(counter < 20000){
-							ctx.strokeStyle = "hsla("+hue+",100%,50%,0.2)";
+							//ctx.strokeStyle = "hsla("+hue+",100%,50%,0.2)";
 							ctx.beginPath();
 							ctx.moveTo(value * height, (1 - value) * height);
 							var newValue = r * value * (1 - value);
@@ -179,7 +202,7 @@
 							ctx.lineTo(newValue * height, (1 - newValue) * height);
 							ctx.stroke();
 							value = newValue;
-							hue += 0.03;
+							//hue += 0.03;
 							counter++;
 						}
 						var imageData = ctx.getImageData(0, 0, height, height);
@@ -229,7 +252,7 @@
 				};
 			})();
 
-			bifurcationDiagram = (function(scaleWithValue, setScale){
+			bifurcationDiagram = (function(){
 				var valueMarker = document.getElementById("valueMarker");
 				var canvas = document.getElementById("bifurcationDiagram");
 				var rect = canvas.getBoundingClientRect();
@@ -245,6 +268,7 @@
 				var coordsMaxX;
 				var coordsMinY = 0;
 				var coordsMaxY = 1;
+				var trailing = false;
 				var processor = new ParallelProcessor(5, "(" + (function(){
 					var sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height;
 					var pointWidth;
@@ -315,7 +339,6 @@
 						currentCancellationToken.cancel();
 					}
 					context.clearRect(0, 0, width, height);
-					//setScale(coordsMinX, coordsMaxX);
 					await processor.update(sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height);
 					currentCancellationToken = processor.getCancellationToken();
 					var numberOfSlices = Math.ceil(width / sliceWidth);
@@ -330,33 +353,29 @@
 					drawAll();
 				};
 
-				canvas.addEventListener("contextmenu", function(e){
-					var realX = (e.clientX - canvasX) * devicePixelRatio;
-					var realY = e.clientY * devicePixelRatio;
-					var currentValue = scaleWithValue.value;
-					coordsMinX = currentValue - (currentValue - coordsMinX) * 2;
-					coordsMaxX = currentValue + (coordsMaxX - currentValue) * 2;
-					drawAll();
-					e.preventDefault();
-					return false;
+				canvas.addEventListener("mousedown", function(){
+					trailing = true;
 				});
-				canvas.addEventListener("click", function(e){
-					// var realX = (e.clientX - canvasX) * devicePixelRatio;
-					// var realY = e.clientY * devicePixelRatio;
-					// var currentValue = scaleWithValue.value;
-					// coordsMinX = currentValue - (currentValue - coordsMinX) / 2;
-					// coordsMaxX = currentValue + (coordsMaxX - currentValue) / 2;
-					// drawAll();
-					zoomIn();
+
+				canvas.addEventListener("mouseup", function(){
+					trailing = false;
+				});
+
+				canvas.addEventListener("mousemove", function(e){
+					if(!trailing){
+						return;
+					}
+					var ratio = (e.clientX - rect.x) / rect.width;
+					goToValueClosestToRatio(ratio);
 				});
 
 				return {
 					setMarkerAtValue: setMarkerAtValue,
 					setStartAndEnd: setStartAndEnd
 				};
-			})(scaleWithValue, setScale);
+			})();
 
-			controls = (function(bifurcationDiagram){
+			controls = (function(){
 				document.getElementById("decrease").addEventListener("click", function(){
 					retreatStep();
 				});
@@ -369,7 +388,13 @@
 				document.getElementById("goright").addEventListener("click", function(){
 					moveScaleRight();
 				});
-			})(bifurcationDiagram);
+				document.getElementById("zoomin").addEventListener("click", function(){
+					zoomIn();
+				});
+				document.getElementById("zoomout").addEventListener("click", function(){
+					zoomOut();
+				});
+			})();
 
 			scaleWithValue.setScale(1, 4);
 			doIt();
