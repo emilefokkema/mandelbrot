@@ -183,8 +183,8 @@
 				var context = canvas.getContext("2d");
 				var sliceWidth = 10;
 				var currentCancellationToken = undefined;
-				var coordsMinX = 0;
-				var coordsMaxX = 4;
+				var coordsMinX;
+				var coordsMaxX;
 				var coordsMinY = 0;
 				var coordsMaxY = 1;
 				var processor = new ParallelProcessor(10, "(" + (function(){
@@ -272,9 +272,6 @@
 					drawAll();
 				};
 
-				setTimeout(drawAll, 0);
-
-				var borderWidth = Math.min(width / 6, height / 6);
 				canvas.addEventListener("contextmenu", function(e){
 					var realX = (e.clientX - canvasX) * devicePixelRatio;
 					var realY = e.clientY * devicePixelRatio;
@@ -314,6 +311,9 @@
 					moveScaleRight();
 				});
 			})(bifurcationDiagram);
+
+			scaleWithValue.setScale(1, 4);
+			bifurcationDiagram.setStartAndEnd(scaleWithValue.scaleStart, scaleWithValue.scaleEnd);
 		})();
 	</script>
 </body>
