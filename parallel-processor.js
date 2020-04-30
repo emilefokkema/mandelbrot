@@ -199,6 +199,9 @@ var ParallelProcessor = (function(){
 			}
 		}
 		async update(){
+			if(this.workers.find(function(w){return w.busy;})){
+				throw new Error("cannot update when requests are pending");
+			}
 			var args = Array.prototype.slice.apply(arguments);
 			var promises = [];
 			for(var i=0;i<this.workers.length;i++){
