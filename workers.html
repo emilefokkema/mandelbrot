@@ -34,6 +34,37 @@
 	
 	<script>
 		(function(){
+			class CobwebImage{
+				constructor(processor, value, height){
+					this.value = value;
+					this.data = undefined;
+					this.cancallationToken = undefined;
+					this.onLoadHandlers = [];
+					this.processor = processor;
+					this.height = height;
+				}
+				onLoad(handler){
+					this.onLoadHandlers.push(handler);
+				}
+				get loaded(){return !!this.data;}
+				async startLoading(){
+					if(this.cancellationToken){
+						return;
+					}
+					this.cancellationToken = this.processor.getCancellationToken();
+					var buffer = await this.processor.process({r: this.value}, this.cancellationToken);
+					var array = new Uint8ClampedArray(buffer);
+					this.data = new ImageData(array, this.height);
+					for(var i=0;i<this.onLoadHandlers.length;i++){
+						this.onLoadHandlers[i]();
+					}
+				}
+				cancelLoad(){
+					if(this.cancellationToken){
+						this.cancellationToken.cancel();
+					}
+				}
+			}
 			class ScaleWithValue{
 				constructor(numberOfSteps){
 					this._stepIndex = undefined;
@@ -175,6 +206,7 @@
 				var currentlyDrawnValue;
 				var images = [];
 				var currentCancellationToken = undefined;
+				var processorInitialized = false;
 				var cobwebProcessor = new ParallelProcessor(5, "("+(function(){
 					var height;
 					process = function(req){
@@ -213,7 +245,6 @@
 					};
 				}).toString()+")()");
 				var drawWithValue = function(r){
-					console.log("cobweb drawing with value ", r);
 					currentlyDrawnValue = r;
 					var image = images.find(function(i){return i.value === r});
 					if(!image || !image.data){
@@ -222,32 +253,51 @@
 					}
 					ctx.putImageData(image.data, 0, 0);
 				};
-				var getDataForImage = async function(image){
-					var buffer = await cobwebProcessor.process({r: image.value}, currentCancellationToken);
-					var array = new Uint8ClampedArray(buffer);
-					image.data = new ImageData(array, height);
-					if(currentlyDrawnValue === image.value){
-						ctx.putImageData(image.data, 0, 0);
+				var removeOldImages = function(newSteps){
+					var newImages = [];
+					for(var i=0;i<images.length;i++){
+						var image = images[i];
+						if(newSteps.includes(image.value)){
+							newImages.push(image);
+						}else{
+							image.cancelLoad();
+						}
 					}
-					console.log("got data for image");
+					images = newImages;
+				};
+				var reportNumberOfImagesLoaded = function(){
+					var number = images.filter(function(i){return i.loaded;}).length;
+					console.log("" + number + " images loaded");
+				};
+				var createNewImage = function(value){
+					var newImage = new CobwebImage(cobwebProcessor, value, height);
+					newImage.onLoad(function(){
+						reportNumberOfImagesLoaded();
+						if(currentlyDrawnValue === value){
+							ctx.putImageData(newImage.data, 0, 0);
+						}
+					});
+					newImage.startLoading();
+					images.push(newImage);
 				};
 				var setSteps = async function(steps){
 					var newSteps = steps.filter(function(v){return !images.find(function(i){return i.value === v;});});
-					images = steps.map(function(v){return images.find(function(i){return i.value === v;});}).filter(function(i){return !!i;});
+					//images = steps.map(function(v){return images.find(function(i){return i.value === v;});}).filter(function(i){return !!i;});
+					removeOldImages(steps);
 					if(newSteps.length === 0){
 						return;
 					}
-					if(currentCancellationToken){
-						currentCancellationToken.cancel();
+					if(!processorInitialized){
+						await cobwebProcessor.update(height);
+						processorInitialized = true;
 					}
-					await cobwebProcessor.update(height);
-					currentCancellationToken = cobwebProcessor.getCancellationToken();
 					for(var i=0; i < newSteps.length; i++){
-						var newImage = {value: newSteps[i]};
-						getDataForImage(newImage);
-						images.push(newImage);
+						createNewImage(newSteps[i]);
+						//var newImage = new CobwebImage(cobwebProcessor, newSteps[i], height);//{value: newSteps[i]};
+						//getDataForImage(newImage);
+						//images.push(newImage);
 					}
-					console.log(images);
+					//console.log(images);
 				};
 				return {
 					drawWithValue: drawWithValue,
