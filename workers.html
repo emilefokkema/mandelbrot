@@ -216,9 +216,11 @@
 					console.log("cobweb drawing with value ", r);
 					currentlyDrawnValue = r;
 					var image = images.find(function(i){return i.value === r});
-					if(image){
-						ctx.putImageData(image.data, 0, 0);
+					if(!image || !image.data){
+						console.warn("image or data not present!");
+						return;
 					}
+					ctx.putImageData(image.data, 0, 0);
 				};
 				var getDataForImage = async function(image){
 					var buffer = await cobwebProcessor.process({r: image.value}, currentCancellationToken);
