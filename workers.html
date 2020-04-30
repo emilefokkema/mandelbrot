@@ -221,7 +221,7 @@
 					}
 				};
 				var getDataForImage = async function(image){
-					var buffer = await cobwebProcessor.process({r: image.value});
+					var buffer = await cobwebProcessor.process({r: image.value}, currentCancellationToken);
 					var array = new Uint8ClampedArray(buffer);
 					image.data = new ImageData(array, height);
 					if(currentlyDrawnValue === image.value){
@@ -239,6 +239,7 @@
 						currentCancellationToken.cancel();
 					}
 					await cobwebProcessor.update(height);
+					currentCancellationToken = cobwebProcessor.getCancellationToken();
 					for(var i=0; i < newSteps.length; i++){
 						var newImage = {value: newSteps[i]};
 						getDataForImage(newImage);
