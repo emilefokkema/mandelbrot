@@ -59,13 +59,13 @@
 					this.cancellationToken = this.processor.getCancellationToken();
 					var blob = await this.processor.process({r: this.value}, this.cancellationToken);
 					var image = new Image();
-					image.addEventListener("load", function(){
-						self.image = image;
+					await new Promise(function(resolve, reject){
+						image.addEventListener("load", function(){
+							self.image = image;
+							resolve();
+						});
+						image.src = URL.createObjectURL(blob);
 					});
-					image.src = URL.createObjectURL(blob);
-					// var array = new Uint8ClampedArray(buffer);
-					// var data = new ImageData(array, this.height);
-					// this.bitmap = await createImageBitmap(data);
 				}
 				cancelLoad(){
 					if(this.cancellationToken){
