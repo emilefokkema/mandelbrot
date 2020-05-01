@@ -148,7 +148,7 @@
 			var bifurcationDiagram;
 			var controls;
 			var cobweb;
-			var scaleWithValue = new ScaleWithValue(60);
+			var scaleWithValue = new ScaleWithValue(120);
 			var handleChange = function(){
 				var newValue = scaleWithValue.value;
 				if(newValue !== undefined){
@@ -223,9 +223,9 @@
 						var value = 0.5;
 						//var hue = 0;
 						var counter = 0;
-						ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
-						ctx.lineWidth = 0.2;
-						while(counter < 20000){
+						ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+						ctx.lineWidth = 0.1;
+						while(counter < 40000){
 							//ctx.strokeStyle = "hsla("+hue+",100%,50%,0.2)";
 							ctx.beginPath();
 							ctx.moveTo(value * height, (1 - value) * height);
@@ -282,7 +282,6 @@
 				};
 				var setSteps = async function(steps){
 					var newSteps = steps.filter(function(v){return !images.find(function(i){return i.value === v;});});
-					//images = steps.map(function(v){return images.find(function(i){return i.value === v;});}).filter(function(i){return !!i;});
 					removeOldImages(steps);
 					if(newSteps.length === 0){
 						return;
@@ -293,11 +292,7 @@
 					}
 					for(var i=0; i < newSteps.length; i++){
 						createNewImage(newSteps[i]);
-						//var newImage = new CobwebImage(cobwebProcessor, newSteps[i], height);//{value: newSteps[i]};
-						//getDataForImage(newImage);
-						//images.push(newImage);
 					}
-					//console.log(images);
 				};
 				return {
 					drawWithValue: drawWithValue,
@@ -371,7 +366,7 @@
 						coordsMaxY = _coordsMaxY;
 						width = _width;
 						height = _height;
-						pointWidth = 5 + 250 * (1 / (1 + Math.pow(60 * (coordsMaxY - coordsMinY), 2)));
+						pointWidth = 5;
 					};		
 				}).toString() + ")()");
 
