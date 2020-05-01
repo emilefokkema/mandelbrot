@@ -9,6 +9,10 @@
 			#valueMarker{position:absolute;bottom:0px;width:1px;background-color: #f00;}
 			#controls{position:absolute;right:20px;bottom:20px;padding:20px;background-color: #fff;border: 1pt solid #000;}
 			.control{user-select: none;cursor:pointer;display: inline-block;}
+			#cobwebProgress{position:absolute;left:10px;top:10px;}
+			.progress{width:100px;height:10px;border:1pt solid #000;}
+			.progress .done{width:0%;height:100%;background-color: #000;}
+			#value{font-family: monospace;font-size: 15px;}
 		</style>
 	</head>
 <body>
@@ -16,6 +20,9 @@
 	<div id="container">
 		<div id="left">
 			<canvas id="cobweb"></canvas>
+			<div id="cobwebProgress" class="progress">
+				<div class="done" id="cobwebProgressDone"></div>
+			</div>
 		</div>
 		<div id="right">
 			<canvas id="bifurcationDiagram"></canvas>
@@ -27,6 +34,7 @@
 				<div id="goright" class="control">right</div>
 				<div id="zoomin" class="control">zoom in</div>
 				<div id="zoomout" class="control">zoom out</div>
+				<div id="value">r = 0.5</div>
 			</div>
 		</div>
 	</div>
@@ -146,15 +154,17 @@
 			divideVertically();
 
 			var bifurcationDiagram;
+			var progress;
 			var controls;
 			var cobweb;
 			var scaleWithValue = new ScaleWithValue(120);
+			var valueDiv = document.getElementById("value");
 			var handleChange = function(){
 				var newValue = scaleWithValue.value;
 				if(newValue !== undefined){
 					cobweb.drawWithValue(newValue);
 					bifurcationDiagram.setMarkerAtValue(newValue);
-
+					valueDiv.innerText = "r = "+newValue
 				}
 			};
 			var doIt = function(){
@@ -195,6 +205,20 @@
 				scaleWithValue.goToValueClosestToRatio(ratio);
 				handleChange();
 			};
+
+			progress = (function(){
+				var container = document.getElementById("cobwebProgress");
+				var done = document.getElementById("cobwebProgressDone");
+				var setRatio = function(ratio){
+					if(ratio === 1){
+						container.style.visibility = "hidden";
+					}else{
+						container.style.visibility = "visible";
+						done.style.width = "" + Math.floor(100 * ratio) + "%";
+					}
+				};
+				return {setRatio: setRatio}
+			})();
 
 			cobweb = (function(){
 				var canvas = document.getElementById("cobweb");
@@ -267,7 +291,7 @@
 				};
 				var reportNumberOfImagesLoaded = function(){
 					var number = images.filter(function(i){return i.loaded;}).length;
-					console.log("" + number + " images loaded");
+					progress.setRatio(number / images.length);
 				};
 				var createNewImage = function(value){
 					var newImage = new CobwebImage(cobwebProcessor, value, height);
@@ -293,6 +317,7 @@
 					for(var i=0; i < newSteps.length; i++){
 						createNewImage(newSteps[i]);
 					}
+					reportNumberOfImagesLoaded();
 				};
 				return {
 					drawWithValue: drawWithValue,
