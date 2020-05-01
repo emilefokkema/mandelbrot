@@ -49,6 +49,7 @@
 					this.processor = processor;
 					this.height = height;
 					this.image = undefined;
+					this.objectUrl = undefined;
 				}
 				get loaded(){return !!this.image;}
 				async load(){
@@ -59,18 +60,23 @@
 					this.cancellationToken = this.processor.getCancellationToken();
 					var blob = await this.processor.process({r: this.value}, this.cancellationToken);
 					var image = new Image();
+					this.objectUrl = URL.createObjectURL(blob);
 					await new Promise(function(resolve, reject){
 						image.addEventListener("load", function(){
 							self.image = image;
 							resolve();
 						});
-						image.src = URL.createObjectURL(blob);
+						image.src = self.objectUrl;
 					});
 				}
-				cancelLoad(){
+				discard(){
 					if(this.cancellationToken){
 						this.cancellationToken.cancel();
 					}
+					if(this.objectUrl !== undefined){
+						URL.revokeObjectURL(this.objectUrl);
+					}
+					this.image = undefined;
 				}
 			}
 			class ScaleWithValue{
@@ -265,7 +271,7 @@
 						}
 						//var imageData = ctx.getImageData(0, 0, height, height);
 						//return imageData.data.buffer;
-						return canvas.convertToBlob({type: "image/jpeg"});
+						return canvas.convertToBlob({type: "image/jpeg", quality: 1});
 					};
 					update = function(_height){
 						height = _height;
@@ -300,7 +306,7 @@
 						if(newSteps.includes(image.value)){
 							newImages.push(image);
 						}else{
-							image.cancelLoad();
+							image.discard();
 						}
 					}
 					images = newImages;
