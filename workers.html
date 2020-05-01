@@ -48,18 +48,24 @@
 					this.cancallationToken = undefined;
 					this.processor = processor;
 					this.height = height;
-					this.bitmap = undefined;
+					this.image = undefined;
 				}
-				get loaded(){return !!this.bitmap;}
+				get loaded(){return !!this.image;}
 				async load(){
+					var self = this;
 					if(this.cancellationToken){
 						return;
 					}
 					this.cancellationToken = this.processor.getCancellationToken();
-					var buffer = await this.processor.process({r: this.value}, this.cancellationToken);
-					var array = new Uint8ClampedArray(buffer);
-					var data = new ImageData(array, this.height);
-					this.bitmap = await createImageBitmap(data);
+					var blob = await this.processor.process({r: this.value}, this.cancellationToken);
+					var image = new Image();
+					image.addEventListener("load", function(){
+						self.image = image;
+					});
+					image.src = URL.createObjectURL(blob);
+					// var array = new Uint8ClampedArray(buffer);
+					// var data = new ImageData(array, this.height);
+					// this.bitmap = await createImageBitmap(data);
 				}
 				cancelLoad(){
 					if(this.cancellationToken){
@@ -255,20 +261,26 @@
 							//hue += 0.03;
 							counter++;
 						}
-						var imageData = ctx.getImageData(0, 0, height, height);
-						return imageData.data.buffer;
+						//var imageData = ctx.getImageData(0, 0, height, height);
+						//return imageData.data.buffer;
+						return canvas.convertToBlob({type: "image/jpeg"});
 					};
 					update = function(_height){
 						height = _height;
 					};
-				}).toString()+")()");
+				}).toString()+")()", false);
 				var displayImage = function(image){
-					if(!image.bitmap){
-						console.warn("image bitmap not present!");
+					// if(!image.bitmap){
+					// 	console.warn("image bitmap not present!");
+					// 	return;
+					// }
+					// ctx.clearRect(0, 0, height, height);
+					// ctx.drawImage(image.bitmap, 0, 0, height, height);
+					if(!image.image){
+						console.warn("image not present!");
 						return;
 					}
-					ctx.clearRect(0, 0, height, height);
-					ctx.drawImage(image.bitmap, 0, 0, height, height);
+					ctx.drawImage(image.image, 0, 0);
 				};
 				var drawWithValue = function(r){
 					currentlyDrawnValue = r;
