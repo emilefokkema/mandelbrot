@@ -2,6 +2,13 @@ var ParallelProcessor = (function(){
 	var workerFn = function(transferResults){
 		var process = function(){};
 		var update = function(){};
+		var sendResult = function(result, id){
+			if(transferResults){
+				postMessage({id: id, result: result}, [result]);
+			}else{
+				postMessage({id: id, result: result});
+			}
+		};
 		onmessage = function(e){
 			var data = e.data;
 			if(data.instruction){
@@ -22,10 +29,14 @@ var ParallelProcessor = (function(){
 			}else if(data.request){
 				try{
 					var result = process(data.request.payload);
-					if(transferResults){
-						postMessage({id: data.request.id, result: result}, [result]);
+					if(result instanceof Promise){
+						result.then(function(resolvedResult){
+							sendResult(resolvedResult, data.request.id);
+						}, function(reason){
+							postMessage({id: data.request.id, error: reason});
+						});
 					}else{
-						postMessage({id: data.request.id, result: result});
+						sendResult(result, data.request.id);
 					}
 				}catch(e){
 					postMessage({id: data.request.id, error: e});
