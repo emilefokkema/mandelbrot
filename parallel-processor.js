@@ -4,7 +4,13 @@ var ParallelProcessor = (function(){
 		var update = function(){};
 		var sendResult = function(result, id){
 			if(transferResults){
-				postMessage({id: id, result: result}, [result]);
+				try{
+					postMessage({id: id, result: result}, [result]);
+				}catch(e){
+					console.error("could not transfer object: ", result);
+					throw new Error("Result is not Transferable");
+				}
+				
 			}else{
 				postMessage({id: id, result: result});
 			}
