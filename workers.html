@@ -42,6 +42,15 @@
 	
 	<script>
 		(function(){
+			class CobwebImageBatch{
+				constructor(processor, values, height){
+					this.values = values;
+					this.cancellationToken = undefined;
+					this.processor = processor;
+					this.height = height;
+					
+				}
+			}
 			class CobwebImage{
 				constructor(processor, value, height){
 					this.value = value;
