@@ -42,50 +42,88 @@
 	
 	<script>
 		(function(){
+			class CobwebImage{
+				constructor(value, height, imageOffsetX){
+					this.value = value;
+					this.height = height;
+					this.image = undefined;
+					this.imageOffsetX = imageOffsetX;
+					this.onDiscardHandlers = [];
+				}
+				get loaded(){return !!this.image;}
+				display(ctx){
+					if(!this.image){
+						return;
+					}
+					ctx.drawImage(this.image, this.imageOffsetX, 0, this.height, this.height, 0, 0, this.height, this.height);
+				}
+				onDiscard(handler){
+					this.onDiscardHandlers.push(handler);
+				}
+				discard(){
+					this.image = undefined;
+					for(var i=0;i<this.onDiscardHandlers.length;i++){
+						this.onDiscardHandlers[i]()
+					}
+				}
+			}
 			class CobwebImageBatch{
 				constructor(processor, values, height){
+					var self = this;
 					this.values = values;
 					this.cancellationToken = undefined;
 					this.processor = processor;
 					this.height = height;
-					
-				}
-			}
-			class CobwebImage{
-				constructor(processor, value, height){
-					this.value = value;
-					this.cancallationToken = undefined;
-					this.processor = processor;
-					this.height = height;
-					this.image = undefined;
 					this.objectUrl = undefined;
+					this.images = [];
+					this.values = values;
+					for(var i=0;i<values.length;i++){
+						this.addImage(values[i], i * height);
+					}
 				}
-				get loaded(){return !!this.image;}
+				addImage(value, imageOffsetX){
+					var self = this;
+					var image = new CobwebImage(value, this.height, imageOffsetX);
+					image.onDiscard(function(){
+						self.discardImage(image);
+					});
+					this.images.push(image);
+				}
+				discardImage(image){
+					var index = this.images.indexOf(image);
+					if(index === -1){
+						return;
+					}
+					this.images.splice(index, 1);
+					if(this.images.length > 0){
+						return;
+					}
+					if(this.cancellationToken){
+						this.cancellationToken.cancel();
+					}
+					if(this.objectUrl !== undefined){
+						console.log("revoking object url");
+						URL.revokeObjectURL(this.objectUrl);
+					}
+				}
 				async load(){
 					var self = this;
 					if(this.cancellationToken){
 						return;
 					}
 					this.cancellationToken = this.processor.getCancellationToken();
-					var blob = await this.processor.process({r: this.value}, this.cancellationToken);
+					var blob = await this.processor.process({values: this.values}, this.cancellationToken);
 					var image = new Image();
 					this.objectUrl = URL.createObjectURL(blob);
 					await new Promise(function(resolve, reject){
 						image.addEventListener("load", function(){
-							self.image = image;
 							resolve();
 						});
 						image.src = self.objectUrl;
 					});
-				}
-				discard(){
-					if(this.cancellationToken){
-						this.cancellationToken.cancel();
+					for(var i=0;i<this.images.length;i++){
+						this.images[i].image = image;
 					}
-					if(this.objectUrl !== undefined){
-						URL.revokeObjectURL(this.objectUrl);
-					}
-					this.image = undefined;
 				}
 			}
 			class ScaleWithValue{
@@ -172,7 +210,7 @@
 			var progress;
 			var controls;
 			var cobweb;
-			var scaleWithValue = new ScaleWithValue(120);
+			var scaleWithValue = new ScaleWithValue(200);
 			var valueDiv = document.getElementById("value");
 			var handleChange = function(){
 				var newValue = scaleWithValue.value;
@@ -246,12 +284,12 @@
 				var images = [];
 				var currentCancellationToken = undefined;
 				var processorInitialized = false;
+				var batchSize = 10;
 				var cobwebProcessor = new ParallelProcessor(5, "("+(function(){
 					var height;
-					process = function(req){
-						var r = req.r;
-						var canvas = new OffscreenCanvas(height, height);
-						var ctx = canvas.getContext("2d");
+					var drawWithValue = function(ctx, r, offsetX){
+						ctx.setTransform(1, 0, 0, 1, offsetX, 0);
+						ctx.save();
 						ctx.fillStyle = "#fff";
 						ctx.fillRect(0, 0, height, height);
 						ctx.beginPath();
@@ -278,35 +316,32 @@
 							//hue += 0.03;
 							counter++;
 						}
-						//var imageData = ctx.getImageData(0, 0, height, height);
-						//return imageData.data.buffer;
+						ctx.restore();
+					};
+					process = function(req){
+						var values = req.values;
+						var canvas = new OffscreenCanvas(height * values.length, height);
+						var ctx = canvas.getContext("2d");
+						for(var i=0;i<values.length;i++){
+							drawWithValue(ctx, values[i], height * i);
+						}
 						return canvas.convertToBlob({type: "image/jpeg", quality: 1});
 					};
 					update = function(_height){
 						height = _height;
 					};
 				}).toString()+")()", false);
-				var displayImage = function(image){
-					// if(!image.bitmap){
-					// 	console.warn("image bitmap not present!");
-					// 	return;
-					// }
-					// ctx.clearRect(0, 0, height, height);
-					// ctx.drawImage(image.bitmap, 0, 0, height, height);
-					if(!image.image){
-						console.warn("image not present!");
-						return;
-					}
-					ctx.drawImage(image.image, 0, 0);
-				};
-				var drawWithValue = function(r){
-					currentlyDrawnValue = r;
-					var image = images.find(function(i){return i.value === r});
+				var drawWithCurrentlyDrawnValue = function(){
+					var image = images.find(function(i){return i.value === currentlyDrawnValue});
 					if(!image){
 						console.warn("image not present!");
 						return;
 					}
-					displayImage(image);
+					image.display(ctx);
+				};
+				var drawWithValue = function(r){
+					currentlyDrawnValue = r;
+					drawWithCurrentlyDrawnValue();
 				};
 				var removeOldImages = function(newSteps){
 					var newImages = [];
@@ -324,13 +359,19 @@
 					var number = images.filter(function(i){return i.loaded;}).length;
 					progress.setRatio(number / images.length);
 				};
-				var createNewImage = async function(value){
-					var newImage = new CobwebImage(cobwebProcessor, value, height);
-					images.push(newImage);
-					await newImage.load();
+				var createNewImageBatch = async function(values){
+					var batch = new CobwebImageBatch(cobwebProcessor, values, height);
+					for(var i=0;i<batch.images.length;i++){
+						images.push(batch.images[i]);
+					}
+					await batch.load();
 					reportNumberOfImagesLoaded();
-					if(currentlyDrawnValue === value){
-						displayImage(newImage);
+					drawWithCurrentlyDrawnValue();
+				};
+				var createNewImages = function(values){
+					var numberOfBatches = Math.ceil(values.length / batchSize);
+					for(var i=0;i<numberOfBatches;i++){
+						createNewImageBatch(values.slice(i * batchSize, (i + 1) * batchSize));
 					}
 				};
 				var setSteps = async function(steps){
@@ -343,9 +384,7 @@
 						await cobwebProcessor.update(height);
 						processorInitialized = true;
 					}
-					for(var i=0; i < newSteps.length; i++){
-						createNewImage(newSteps[i]);
-					}
+					createNewImages(newSteps);
 					reportNumberOfImagesLoaded();
 				};
 				return {
