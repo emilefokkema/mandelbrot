@@ -145,7 +145,18 @@
 					}
 				}
 			}
-
+			var getCutClosestToRatio = function(total, ratio, minSize){
+				var result;
+				var distanceFromRatio;
+				for(var c = minSize; c <= total - minSize; c++){
+					var newDistanceFromRatio = Math.abs(c / total - ratio);
+					if(result === undefined || newDistanceFromRatio < distanceFromRatio){
+						distanceFromRatio = newDistanceFromRatio;
+						result = c;
+					}
+				}
+				return [result, total - result];
+			};
 			var divideVertically = function(){
 				var height = window.innerHeight;
 				var cobwebCanvas = document.getElementById("cobweb");
@@ -165,6 +176,7 @@
 			var cobweb;
 			var scaleWithValue = new ScaleWithValue(120);
 			var valueDiv = document.getElementById("value");
+			var cut = getCutClosestToRatio(navigator.hardwareConcurrency, 1 / 6, 1);
 			var handleChange = function(){
 				var newValue = scaleWithValue.value;
 				if(newValue !== undefined){
@@ -237,7 +249,7 @@
 				var images = [];
 				var currentCancellationToken = undefined;
 				var processorInitialized = false;
-				var cobwebProcessor = new ParallelProcessor(5, "("+(function(){
+				var cobwebProcessor = new ParallelProcessor(cut[1], "("+(function(){
 					var height;
 					process = function(req){
 						var r = req.r;
@@ -362,7 +374,7 @@
 				var coordsMinY = 0;
 				var coordsMaxY = 1;
 				var trailing = false;
-				var processor = new ParallelProcessor(5, "(" + (function(){
+				var processor = new ParallelProcessor(cut[0], "(" + (function(){
 					var sliceWidth, coordsMinX, coordsMinY, coordsMaxX, coordsMaxY, width, height;
 					var pointWidth;
 					var getCoordsX = function(x){
