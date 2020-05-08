@@ -8,7 +8,7 @@
 			#right{display: inline-block;height:100%;}
 			#valueMarker{position:absolute;bottom:0px;width:1px;background-color: #f00;}
 			#controls{position:absolute;right:20px;bottom:20px;padding:20px;background-color: #fff;border: 1pt solid #000;}
-			.control{user-select: none;cursor:pointer;display: inline-block;}
+			.control{user-select: none;cursor:pointer;display: inline-block;margin:3px;background-color: #aaa;}
 			#cobwebProgress{position:absolute;left:10px;top:10px;}
 			.progress{width:100px;height:10px;border:1pt solid #000;}
 			.progress .done{width:0%;height:100%;background-color: #000;}
@@ -34,6 +34,8 @@
 				<div id="goright" class="control">right</div>
 				<div id="zoomin" class="control">zoom in</div>
 				<div id="zoomout" class="control">zoom out</div>
+				<div id="play" class="control">play</div>
+				<div id="stop" class="control">stop</div>
 				<div id="value">r = 0.5</div>
 			</div>
 		</div>
@@ -79,6 +81,72 @@
 					this.image = undefined;
 				}
 			}
+			class CobwebImageBuffer{
+				constructor(processor, startValue, valueStep, length, height){
+					this.processor = processor;
+					this.startValue = startValue;
+					this.valueStep = valueStep;
+					this.length = length;
+					this.height = height;
+					this.images = [];
+					this.onProgressHandler = undefined;
+					this._loadingPromise = undefined;
+					this.createImages();
+				}
+				createImages(){
+					var value = this.startValue;
+					for(var i=0;i<this.length;i++){
+						this.images.push(new CobwebImage(this.processor, value, this.height));
+						value += this.valueStep;
+					}
+				}
+				get lastValue(){
+					return this.images[this.images.length - 1].value;
+				}
+				discard(){
+					for(var i=0;i<this.images.length;i++){
+						this.images[i].discard();
+					}
+				}
+				async loadImage(image){
+					await image.load();
+					this.reportProgress();
+				}
+				async loadImages(){
+					var start = +new Date();
+					var promises = [];
+					for(var i=0;i<this.images.length;i++){
+						promises.push(this.loadImage(this.images[i]));
+					}
+					await Promise.all(promises);
+					console.log("loaded buffer images in "+(+new Date() - start)+" ms");
+				}
+				reportProgress(){
+					if(this.onProgressHandler){
+						var progress = this.images.filter(function(i){return i.loaded;}).length / this.images.length;
+						this.onProgressHandler(progress);
+					}
+				}
+				async play(context, interval, onDisplayValue){
+					console.log("playing buffer");
+					for(var i=0;i<this.images.length;i++){
+						context.drawImage(this.images[i].image, 0, 0);
+						onDisplayValue && onDisplayValue(this.images[i].value);
+						await new Promise(function(res){setTimeout(res, interval);});
+					}
+				}
+				reportProgressWhileLoading(onProgressHandler){
+					this.onProgressHandler = onProgressHandler;
+					this.reportProgress();
+					if(!this._loadingPromise){
+						this.load();
+					}
+					return this._loadingPromise;
+				}
+				load(){
+					this._loadingPromise = this.loadImages();
+				}
+			}
 			class ScaleWithValue{
 				constructor(numberOfSteps){
 					this._stepIndex = undefined;
@@ -91,7 +159,6 @@
 					return this.steps ? this.steps[this._stepIndex] : undefined;
 				}
 				setScale(start, end){
-					console.log("setting scale");
 					this.scaleStart = start;
 					this.scaleEnd = end;
 					this.createSteps();
@@ -177,6 +244,7 @@
 			var scaleWithValue = new ScaleWithValue(120);
 			var valueDiv = document.getElementById("value");
 			var cut = getCutClosestToRatio(navigator.hardwareConcurrency, 1 / 6, 1);
+			var currentPlayback = undefined;
 			var handleChange = function(){
 				var newValue = scaleWithValue.value;
 				if(newValue !== undefined){
@@ -222,6 +290,16 @@
 			var goToValueClosestToRatio = function(ratio){
 				scaleWithValue.goToValueClosestToRatio(ratio);
 				handleChange();
+			};
+			var startPlayback = function(){
+				controls.togglePlaying(true);
+				currentPlayback = cobweb.startPlayback(scaleWithValue.getStepSize() / 100);
+			};
+			var stopPlayback = function(){
+				currentPlayback.stop();
+				currentPlayback = undefined;
+				controls.togglePlaying(false);
+				cobweb.setSteps(scaleWithValue.steps);
 			};
 
 			progress = (function(){
@@ -351,9 +429,43 @@
 					}
 					reportNumberOfImagesLoaded();
 				};
+				var startPlayback = function(valueStep){
+					console.log("starting playback with step " + valueStep)
+					setSteps([]);
+					//var currentBuffer = new CobwebImageBuffer(cobwebProcessor, currentlyDrawnValue, valueStep, 10, height);
+
+					var loadBufferAndReportProgress = function(buffer){
+						return buffer.reportProgressWhileLoading(function(ratio){progress.setRatio(ratio);});
+					};
+					var createBuffer = function(startValue){
+						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 200, height);
+					};
+					var onDisplayValue = function(value){
+						bifurcationDiagram.setMarkerAtValue(value);
+						valueDiv.innerText = "r = "+value
+					};
+					var play = async function(buffer){
+						var nextBuffer = createBuffer(buffer.lastValue + valueStep);//new CobwebImageBuffer(cobwebProcessor, buffer.lastValue + valueStep, valueStep, 10, height);
+						
+						var bufferLoadPromise = loadBufferAndReportProgress(buffer);
+						nextBuffer.load();
+						await bufferLoadPromise;
+						await buffer.play(ctx, 70, onDisplayValue);
+						buffer.discard();
+						play(nextBuffer);
+					};
+					
+					var stop = function(){
+						console.log("stopping playback")
+					};
+					//play(new CobwebImageBuffer(cobwebProcessor, currentlyDrawnValue, valueStep, 10, height));
+					play(createBuffer(currentlyDrawnValue));
+					return {stop: stop};
+				};
 				return {
 					drawWithValue: drawWithValue,
-					setSteps: setSteps
+					setSteps: setSteps,
+					startPlayback: startPlayback
 				};
 			})();
 
@@ -459,14 +571,23 @@
 				};
 
 				canvas.addEventListener("mousedown", function(){
+					if(currentPlayback){
+						return;
+					}
 					trailing = true;
 				});
 
 				canvas.addEventListener("mouseup", function(){
+					if(currentPlayback){
+						return;
+					}
 					trailing = false;
 				});
 
 				canvas.addEventListener("mousemove", function(e){
+					if(currentPlayback){
+						return;
+					}
 					if(!trailing){
 						return;
 					}
@@ -481,6 +602,14 @@
 			})();
 
 			controls = (function(){
+				var startPlayButton = document.getElementById("play");
+				var stopPlayButton = document.getElementById("stop");
+				startPlayButton.addEventListener("click", function(){
+					startPlayback();
+				});
+				stopPlayButton.addEventListener("click", function(){
+					stopPlayback();
+				});
 				document.getElementById("decrease").addEventListener("click", function(){
 					retreatStep();
 				});
@@ -499,9 +628,16 @@
 				document.getElementById("zoomout").addEventListener("click", function(){
 					zoomOut();
 				});
+
+				var togglePlaying = function(playing){
+					stopPlayButton.style.display = playing ? "unset" : "none";
+					startPlayButton.style.display = playing ? "none" : "unset";
+				};
+				return {togglePlaying: togglePlaying};
 			})();
 
 			scaleWithValue.setScale(1, 4);
+			controls.togglePlaying(false);
 			doIt();
 		})();
 	</script>
