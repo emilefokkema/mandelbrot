@@ -1,0 +1,17 @@
+{
+  "name": "mandelbrot",
+  "version": "1.0.0",
+  "description": "use web workers to draw a mandelbrot",
+  "scripts":{
+    "serve": "node serve.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/emilefokkema/mandelbrot.git"
+  },
+  "author": "Emile Fokkema",
+  "license": "ISC",
+  "devDependencies": {
+    "node-static": "^0.7.11"
+  }
+}
