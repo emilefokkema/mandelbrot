@@ -61,7 +61,6 @@
 					this.cancellationToken = this.processor.getCancellationToken();
 					this.objectUrl = await this.processor.process({r: this.value}, this.cancellationToken);
 					var image = new Image();
-					//this.objectUrl = URL.createObjectURL(blob);
 					await new Promise(function(resolve, reject){
 						image.addEventListener("load", function(){
 							self.image = image;
@@ -87,8 +86,8 @@
 					this.valueStep = valueStep;
 					this.length = length;
 					this.images = [];
-					this.onProgressHandler = undefined;
 					this._loadingPromise = undefined;
+					this.onImageLoadedHandler = undefined;
 					this.createImages();
 				}
 				createImages(){
@@ -108,7 +107,10 @@
 				}
 				async loadImage(image){
 					await image.load();
-					this.reportProgress();
+					this.onImageLoadedHandler && this.onImageLoadedHandler();
+				}
+				onImageLoaded(onImageLoadedHandler){
+					this.onImageLoadedHandler = onImageLoadedHandler;
 				}
 				async loadImages(){
 					var start = +new Date();
@@ -118,12 +120,6 @@
 					}
 					await Promise.all(promises);
 					console.log("loaded buffer images in "+(+new Date() - start)+" ms");
-				}
-				reportProgress(){
-					if(this.onProgressHandler){
-						var progress = this.images.filter(function(i){return i.loaded;}).length / this.images.length;
-						this.onProgressHandler(progress);
-					}
 				}
 				async playInTime(context, nrOfMilliseconds, onDisplayValue){
 					var currentTime = +new Date();
@@ -146,16 +142,11 @@
 						await new Promise(function(res){setTimeout(res, interval);});
 					}
 				}
-				reportProgressWhileLoading(onProgressHandler){
-					this.onProgressHandler = onProgressHandler;
-					this.reportProgress();
+				load(){
 					if(!this._loadingPromise){
-						this.load();
+						this._loadingPromise = this.loadImages();
 					}
 					return this._loadingPromise;
-				}
-				load(){
-					this._loadingPromise = this.loadImages();
 				}
 			}
 			class ScaleWithValue{
@@ -445,11 +436,12 @@
 					console.log("starting playback with step " + valueStep)
 					setSteps([]);
 
-					var loadBufferAndReportProgress = function(buffer){
-						return buffer.reportProgressWhileLoading(function(ratio){progress.setRatio(ratio);});
-					};
 					var createBuffer = function(startValue){
 						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 300);
+					};
+					var reportBufferProgress = function(buffer){
+						var ratio = buffer.images.filter(function(i){return i.loaded;}).length / buffer.images.length;
+						progress.setRatio(ratio);
 					};
 					var onDisplayValue = function(value){
 						bifurcationDiagram.setMarkerAtValue(value);
@@ -457,8 +449,9 @@
 					};
 					var play = async function(buffer){
 						var nextBuffer = createBuffer(buffer.lastValue + valueStep);
-						
-						var bufferLoadPromise = loadBufferAndReportProgress(buffer);
+						reportBufferProgress(buffer);
+						buffer.onImageLoaded(function(){reportBufferProgress(buffer)});
+						var bufferLoadPromise = buffer.load();
 						nextBuffer.load();
 						await bufferLoadPromise;
 						await buffer.playInTime(ctx, 9000, onDisplayValue);
