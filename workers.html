@@ -50,31 +50,32 @@
 					this.cancallationToken = undefined;
 					this.processor = processor;
 					this.image = undefined;
-					this.objectUrl = undefined;
 				}
 				get loaded(){return !!this.image;}
+				loadImageFromObjectUrl(objectUrl){
+					var self = this;
+					var image = new Image();
+					return new Promise(function(resolve, reject){
+						image.addEventListener("load", function(){
+							self.image = image;
+							resolve();
+						});
+						image.src = objectUrl;
+					});
+				}
 				async load(){
 					var self = this;
 					if(this.cancellationToken){
 						return;
 					}
 					this.cancellationToken = this.processor.getCancellationToken();
-					this.objectUrl = await this.processor.process({r: this.value}, this.cancellationToken);
-					var image = new Image();
-					await new Promise(function(resolve, reject){
-						image.addEventListener("load", function(){
-							self.image = image;
-							resolve();
-						});
-						image.src = self.objectUrl;
-					});
+					var objectUrl = await this.processor.process({r: this.value}, this.cancellationToken);
+					await this.loadImageFromObjectUrl(objectUrl);
+					URL.revokeObjectURL(objectUrl);
 				}
 				discard(){
 					if(this.cancellationToken){
 						this.cancellationToken.cancel();
-					}
-					if(this.objectUrl !== undefined){
-						URL.revokeObjectURL(this.objectUrl);
 					}
 					this.image = undefined;
 				}
