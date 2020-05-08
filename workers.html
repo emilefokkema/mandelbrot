@@ -60,9 +60,9 @@
 						return;
 					}
 					this.cancellationToken = this.processor.getCancellationToken();
-					var blob = await this.processor.process({r: this.value}, this.cancellationToken);
+					this.objectUrl = await this.processor.process({r: this.value}, this.cancellationToken);
 					var image = new Image();
-					this.objectUrl = URL.createObjectURL(blob);
+					//this.objectUrl = URL.createObjectURL(blob);
 					await new Promise(function(resolve, reject){
 						image.addEventListener("load", function(){
 							self.image = image;
@@ -342,7 +342,7 @@
 				var processorInitialized = false;
 				var cobwebProcessor = new ParallelProcessor(cut[1], "("+(function(){
 					var height;
-					process = function(req){
+					process = async function(req){
 						var r = req.r;
 						var canvas = new OffscreenCanvas(height, height);
 						var ctx = canvas.getContext("2d");
@@ -374,7 +374,8 @@
 						}
 						//var imageData = ctx.getImageData(0, 0, height, height);
 						//return imageData.data.buffer;
-						return canvas.convertToBlob({type: "image/jpeg", quality: 1});
+						var blob = await canvas.convertToBlob({type: "image/jpeg", quality: 1});
+						return URL.createObjectURL(blob);
 					};
 					update = function(_height){
 						height = _height;
@@ -458,14 +459,14 @@
 						valueDiv.innerText = "r = "+value
 					};
 					var play = async function(buffer){
-						//var nextBuffer = createBuffer(buffer.lastValue + valueStep);//new CobwebImageBuffer(cobwebProcessor, buffer.lastValue + valueStep, valueStep, 10, height);
+						var nextBuffer = createBuffer(buffer.lastValue + valueStep);//new CobwebImageBuffer(cobwebProcessor, buffer.lastValue + valueStep, valueStep, 10, height);
 						
 						var bufferLoadPromise = loadBufferAndReportProgress(buffer);
-						//nextBuffer.load();
+						nextBuffer.load();
 						await bufferLoadPromise;
-						await buffer.playInTime(ctx, 10000, onDisplayValue);
+						await buffer.playInTime(ctx, 9000, onDisplayValue);
 						buffer.discard();
-						//play(nextBuffer);
+						play(nextBuffer);
 					};
 					
 					var stop = function(){
