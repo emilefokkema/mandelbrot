@@ -63,6 +63,13 @@
 						image.src = objectUrl;
 					});
 				}
+				draw(ctx){
+					if(!this.image){
+						console.warn("image not present!");
+						return;
+					}
+					ctx.drawImage(this.image, 0, 0);
+				}
 				async load(){
 					var self = this;
 					if(this.cancellationToken){
@@ -80,38 +87,18 @@
 					this.image = undefined;
 				}
 			}
-			class CobwebImageBuffer{
-				constructor(processor, startValue, valueStep, length){
-					this.processor = processor;
-					this.startValue = startValue;
-					this.valueStep = valueStep;
-					this.length = length;
-					this.images = [];
-					this._loadingPromise = undefined;
+			class CobwebImageSet{
+				constructor(processor, values){
+					this.images = values.map(function(v){return new CobwebImage(processor, v);});
 					this.onImageLoadedHandler = undefined;
-					this.createImages();
-				}
-				createImages(){
-					var value = this.startValue;
-					for(var i=0;i<this.length;i++){
-						this.images.push(new CobwebImage(this.processor, value));
-						value += this.valueStep;
-					}
-				}
-				get lastValue(){
-					return this.images[this.images.length - 1].value;
-				}
-				discard(){
-					for(var i=0;i<this.images.length;i++){
-						this.images[i].discard();
-					}
-				}
-				async loadImage(image){
-					await image.load();
-					this.onImageLoadedHandler && this.onImageLoadedHandler();
+					this._loadingPromise = undefined;
 				}
 				onImageLoaded(onImageLoadedHandler){
 					this.onImageLoadedHandler = onImageLoadedHandler;
+				}
+				async loadImage(image){
+					await image.load();
+					this.onImageLoadedHandler && this.onImageLoadedHandler(image);
 				}
 				async loadImages(){
 					var start = +new Date();
@@ -122,33 +109,41 @@
 					await Promise.all(promises);
 					console.log("loaded buffer images in "+(+new Date() - start)+" ms");
 				}
-				async playInTime(context, nrOfMilliseconds, onDisplayValue){
-					var currentTime = +new Date();
-					var endTime = currentTime + nrOfMilliseconds;
-					while(currentTime < endTime){
-						var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
-						var imageIndex = Math.floor(this.images.length * ratio);
-						console.log("drawing image");
-						context.drawImage(this.images[imageIndex].image, 0, 0);
-						onDisplayValue && onDisplayValue(this.images[imageIndex].value);
-						await new Promise(function(res){requestAnimationFrame(res);});
-						currentTime = +new Date();
-					}
-				}
-				async play(context, interval, onDisplayValue){
-					console.log("playing buffer");
-					for(var i=0;i<this.images.length;i++){
-						context.drawImage(this.images[i].image, 0, 0);
-						onDisplayValue && onDisplayValue(this.images[i].value);
-						await new Promise(function(res){setTimeout(res, interval);});
-					}
-				}
 				load(){
 					if(!this._loadingPromise){
 						this._loadingPromise = this.loadImages();
 					}
 					return this._loadingPromise;
 				}
+			}
+			class CobwebImageBuffer extends CobwebImageSet{
+				constructor(processor, startValue, valueStep, length){
+					super(processor, Array.apply(null, new Array(length)).map(function(x, i){return startValue + i * valueStep;}));
+					
+					
+				}
+				get lastValue(){
+					return this.images[this.images.length - 1].value;
+				}
+				discard(){
+					for(var i=0;i<this.images.length;i++){
+						this.images[i].discard();
+					}
+				}
+
+				async playInTime(context, nrOfMilliseconds, onDisplayValue){
+					var currentTime = +new Date();
+					var endTime = currentTime + nrOfMilliseconds;
+					while(currentTime < endTime){
+						var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
+						var imageIndex = Math.floor(this.images.length * ratio);
+						this.images[imageIndex].draw(context);
+						onDisplayValue && onDisplayValue(this.images[imageIndex].value);
+						await new Promise(function(res){requestAnimationFrame(res);});
+						currentTime = +new Date();
+					}
+				}
+
 			}
 			class ScaleWithValue{
 				constructor(numberOfSteps){
@@ -330,7 +325,7 @@
 				var images = [];
 				var currentCancellationToken = undefined;
 				var processorInitialized = false;
-				var cobwebProcessor = new ParallelProcessor(cut[1], "("+(function(){
+				var cobwebProcessor = new ParallelProcessor(10, "("+(function(){
 					var height;
 					process = async function(req){
 						var r = req.r;
@@ -346,12 +341,10 @@
 						ctx.stroke();
 
 						var value = 0.5;
-						//var hue = 0;
 						var counter = 0;
 						ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
 						ctx.lineWidth = 0.1;
 						while(counter < 40000){
-							//ctx.strokeStyle = "hsla("+hue+",100%,50%,0.2)";
 							ctx.beginPath();
 							ctx.moveTo(value * height, (1 - value) * height);
 							var newValue = r * value * (1 - value);
@@ -362,8 +355,6 @@
 							//hue += 0.03;
 							counter++;
 						}
-						//var imageData = ctx.getImageData(0, 0, height, height);
-						//return imageData.data.buffer;
 						var blob = await canvas.convertToBlob({type: "image/jpeg", quality: 1});
 						return URL.createObjectURL(blob);
 					};
@@ -371,19 +362,7 @@
 						height = _height;
 					};
 				}).toString()+")()", false);
-				var displayImage = function(image){
-					// if(!image.bitmap){
-					// 	console.warn("image bitmap not present!");
-					// 	return;
-					// }
-					// ctx.clearRect(0, 0, height, height);
-					// ctx.drawImage(image.bitmap, 0, 0, height, height);
-					if(!image.image){
-						console.warn("image not present!");
-						return;
-					}
-					ctx.drawImage(image.image, 0, 0);
-				};
+
 				var drawWithValue = function(r){
 					currentlyDrawnValue = r;
 					var image = images.find(function(i){return i.value === r});
@@ -391,7 +370,7 @@
 						console.warn("image not present!");
 						return;
 					}
-					displayImage(image);
+					image.draw(ctx);
 				};
 				var removeOldImages = function(newSteps){
 					var newImages = [];
@@ -409,15 +388,6 @@
 					var number = images.filter(function(i){return i.loaded;}).length;
 					progress.setRatio(number / images.length);
 				};
-				var createNewImage = async function(value){
-					var newImage = new CobwebImage(cobwebProcessor, value);
-					images.push(newImage);
-					await newImage.load();
-					reportNumberOfImagesLoaded();
-					if(currentlyDrawnValue === value){
-						displayImage(newImage);
-					}
-				};
 				var setSteps = async function(steps){
 					var newSteps = steps.filter(function(v){return !images.find(function(i){return i.value === v;});});
 					removeOldImages(steps);
@@ -428,10 +398,18 @@
 						await cobwebProcessor.update(height);
 						processorInitialized = true;
 					}
-					for(var i=0; i < newSteps.length; i++){
-						createNewImage(newSteps[i]);
+					var newImageSet = new CobwebImageSet(cobwebProcessor, newSteps);
+					for(var i=0;i<newImageSet.images.length;i++){
+						images.push(newImageSet.images[i]);
 					}
+					newImageSet.onImageLoaded(function(i){
+						reportNumberOfImagesLoaded();
+						if(currentlyDrawnValue === i.value){
+							i.draw(ctx);
+						}
+					});
 					reportNumberOfImagesLoaded();
+					newImageSet.load();
 				};
 				var startPlayback = function(valueStep){
 					console.log("starting playback with step " + valueStep)
@@ -463,7 +441,6 @@
 					var stop = function(){
 						console.log("stopping playback")
 					};
-					//play(new CobwebImageBuffer(cobwebProcessor, currentlyDrawnValue, valueStep, 10, height));
 					play(createBuffer(currentlyDrawnValue));
 					return {stop: stop};
 				};
