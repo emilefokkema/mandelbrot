@@ -45,11 +45,10 @@
 	<script>
 		(function(){
 			class CobwebImage{
-				constructor(processor, value, height){
+				constructor(processor, value){
 					this.value = value;
 					this.cancallationToken = undefined;
 					this.processor = processor;
-					this.height = height;
 					this.image = undefined;
 					this.objectUrl = undefined;
 				}
@@ -82,12 +81,11 @@
 				}
 			}
 			class CobwebImageBuffer{
-				constructor(processor, startValue, valueStep, length, height){
+				constructor(processor, startValue, valueStep, length){
 					this.processor = processor;
 					this.startValue = startValue;
 					this.valueStep = valueStep;
 					this.length = length;
-					this.height = height;
 					this.images = [];
 					this.onProgressHandler = undefined;
 					this._loadingPromise = undefined;
@@ -96,7 +94,7 @@
 				createImages(){
 					var value = this.startValue;
 					for(var i=0;i<this.length;i++){
-						this.images.push(new CobwebImage(this.processor, value, this.height));
+						this.images.push(new CobwebImage(this.processor, value));
 						value += this.valueStep;
 					}
 				}
@@ -420,7 +418,7 @@
 					progress.setRatio(number / images.length);
 				};
 				var createNewImage = async function(value){
-					var newImage = new CobwebImage(cobwebProcessor, value, height);
+					var newImage = new CobwebImage(cobwebProcessor, value);
 					images.push(newImage);
 					await newImage.load();
 					reportNumberOfImagesLoaded();
@@ -446,20 +444,19 @@
 				var startPlayback = function(valueStep){
 					console.log("starting playback with step " + valueStep)
 					setSteps([]);
-					//var currentBuffer = new CobwebImageBuffer(cobwebProcessor, currentlyDrawnValue, valueStep, 10, height);
 
 					var loadBufferAndReportProgress = function(buffer){
 						return buffer.reportProgressWhileLoading(function(ratio){progress.setRatio(ratio);});
 					};
 					var createBuffer = function(startValue){
-						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 300, height);
+						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 300);
 					};
 					var onDisplayValue = function(value){
 						bifurcationDiagram.setMarkerAtValue(value);
 						valueDiv.innerText = "r = "+value
 					};
 					var play = async function(buffer){
-						var nextBuffer = createBuffer(buffer.lastValue + valueStep);//new CobwebImageBuffer(cobwebProcessor, buffer.lastValue + valueStep, valueStep, 10, height);
+						var nextBuffer = createBuffer(buffer.lastValue + valueStep);
 						
 						var bufferLoadPromise = loadBufferAndReportProgress(buffer);
 						nextBuffer.load();
