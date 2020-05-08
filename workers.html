@@ -127,6 +127,19 @@
 						this.onProgressHandler(progress);
 					}
 				}
+				async playInTime(context, nrOfMilliseconds, onDisplayValue){
+					var currentTime = +new Date();
+					var endTime = currentTime + nrOfMilliseconds;
+					while(currentTime < endTime){
+						var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
+						var imageIndex = Math.floor(this.images.length * ratio);
+						console.log("drawing image");
+						context.drawImage(this.images[imageIndex].image, 0, 0);
+						onDisplayValue && onDisplayValue(this.images[imageIndex].value);
+						await new Promise(function(res){requestAnimationFrame(res);});
+						currentTime = +new Date();
+					}
+				}
 				async play(context, interval, onDisplayValue){
 					console.log("playing buffer");
 					for(var i=0;i<this.images.length;i++){
@@ -438,21 +451,21 @@
 						return buffer.reportProgressWhileLoading(function(ratio){progress.setRatio(ratio);});
 					};
 					var createBuffer = function(startValue){
-						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 200, height);
+						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 300, height);
 					};
 					var onDisplayValue = function(value){
 						bifurcationDiagram.setMarkerAtValue(value);
 						valueDiv.innerText = "r = "+value
 					};
 					var play = async function(buffer){
-						var nextBuffer = createBuffer(buffer.lastValue + valueStep);//new CobwebImageBuffer(cobwebProcessor, buffer.lastValue + valueStep, valueStep, 10, height);
+						//var nextBuffer = createBuffer(buffer.lastValue + valueStep);//new CobwebImageBuffer(cobwebProcessor, buffer.lastValue + valueStep, valueStep, 10, height);
 						
 						var bufferLoadPromise = loadBufferAndReportProgress(buffer);
-						nextBuffer.load();
+						//nextBuffer.load();
 						await bufferLoadPromise;
-						await buffer.play(ctx, 70, onDisplayValue);
+						await buffer.playInTime(ctx, 10000, onDisplayValue);
 						buffer.discard();
-						play(nextBuffer);
+						//play(nextBuffer);
 					};
 					
 					var stop = function(){
