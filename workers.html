@@ -105,6 +105,10 @@
 				onImageLoaded(onImageLoadedHandler){
 					this.onImageLoadedHandler = onImageLoadedHandler;
 				}
+				async loadImageBatch(images){
+					var cancellationToken = this.processor.getCancellationToken();
+					
+				}
 				async loadImage(image){
 					var cancellationToken = this.processor.getCancellationToken();
 					image.onDiscarded(function(){cancellationToken.cancel();});
@@ -345,8 +349,7 @@
 				var processorInitialized = false;
 				var cobwebProcessor = new ParallelProcessor(10, "("+(function(){
 					var height;
-					process = async function(req){
-						var r = req.r;
+					var drawForValue = async function(r){
 						var canvas = new OffscreenCanvas(height, height);
 						var ctx = canvas.getContext("2d");
 						ctx.fillStyle = "#fff";
@@ -375,6 +378,10 @@
 						}
 						var blob = await canvas.convertToBlob({type: "image/jpeg", quality: 1});
 						return URL.createObjectURL(blob);
+					};
+					process = function(req){
+						var values = req.values;
+						return Promise.all(values.map(function(v){return drawForValue(v);}));
 					};
 					update = function(_height){
 						height = _height;
