@@ -45,11 +45,11 @@
 	<script>
 		(function(){
 			class CobwebImage{
-				constructor(processor, value){
+				constructor(value){
 					this.value = value;
-					this.cancallationToken = undefined;
-					this.processor = processor;
 					this.image = undefined;
+					this.onDiscardedHandlers = [];
+					this.discarded = false;
 				}
 				get loaded(){return !!this.image;}
 				loadImageFromObjectUrl(objectUrl){
@@ -70,34 +70,54 @@
 					}
 					ctx.drawImage(this.image, 0, 0);
 				}
-				async load(){
-					var self = this;
-					if(this.cancellationToken){
-						return;
-					}
-					this.cancellationToken = this.processor.getCancellationToken();
-					var objectUrl = await this.processor.process({r: this.value}, this.cancellationToken);
-					await this.loadImageFromObjectUrl(objectUrl);
-					URL.revokeObjectURL(objectUrl);
+				onDiscarded(handler){
+					this.onDiscardedHandlers.push(handler);
 				}
 				discard(){
-					if(this.cancellationToken){
-						this.cancellationToken.cancel();
+					if(this.discarded){
+						return;
+					}
+					for(var i=0;i<this.onDiscardedHandlers.length;i++){
+						this.onDiscardedHandlers[i]();
 					}
 					this.image = undefined;
+					this.discarded = true;
 				}
 			}
 			class CobwebImageSet{
 				constructor(processor, values){
-					this.images = values.map(function(v){return new CobwebImage(processor, v);});
+					var self = this;
+					this.images = values.map(function(v){
+						var image = new CobwebImage(v);
+						image.onDiscarded(function(){self.removeImage(image);});
+						return image;
+					});
 					this.onImageLoadedHandler = undefined;
 					this._loadingPromise = undefined;
+					this.processor = processor;
+				}
+				removeImage(image){
+					var index = this.images.indexOf(image);
+					if(index > -1){
+						this.images.splice(index, 1);
+					}
 				}
 				onImageLoaded(onImageLoadedHandler){
 					this.onImageLoadedHandler = onImageLoadedHandler;
 				}
 				async loadImage(image){
-					await image.load();
+					var cancellationToken = this.processor.getCancellationToken();
+					image.onDiscarded(function(){cancellationToken.cancel();});
+					var objectUrl = await this.processor.process({r: image.value}, cancellationToken);
+					if(image.discarded){
+						URL.revokeObjectURL(objectUrl);
+						return;
+					}
+					await image.loadImageFromObjectUrl(objectUrl);
+					URL.revokeObjectURL(objectUrl);
+					if(image.discarded){
+						return;
+					}
 					this.onImageLoadedHandler && this.onImageLoadedHandler(image);
 				}
 				async loadImages(){
@@ -119,8 +139,6 @@
 			class CobwebImageBuffer extends CobwebImageSet{
 				constructor(processor, startValue, valueStep, length){
 					super(processor, Array.apply(null, new Array(length)).map(function(x, i){return startValue + i * valueStep;}));
-					
-					
 				}
 				get lastValue(){
 					return this.images[this.images.length - 1].value;
