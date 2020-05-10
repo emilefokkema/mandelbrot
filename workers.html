@@ -105,9 +105,34 @@
 				onImageLoaded(onImageLoadedHandler){
 					this.onImageLoadedHandler = onImageLoadedHandler;
 				}
+				async loadImageWithObjectUrl(image, objectUrl){
+					if(image.discarded){
+						URL.revokeObjectURL(objectUrl);
+						return;
+					}
+					await image.loadImageFromObjectUrl(objectUrl);
+					URL.revokeObjectURL(objectUrl);
+					if(image.discarded){
+						return;
+					}
+					this.onImageLoadedHandler && this.onImageLoadedHandler(image);
+				}
 				async loadImageBatch(images){
 					var cancellationToken = this.processor.getCancellationToken();
-					
+					var numberOfImagesToLoad = images.length;
+					for(var i=0;i<images.length;i++){
+						images[i].onDiscarded(function(){
+							if(--numberOfImagesToLoad <= 0){
+								cancellationToken.cancel();
+							}
+						});
+					}
+					var objectUrls = await this.processor.process({values: images.map(function(i){return i.value;})}, cancellationToken);
+					var promises = [];
+					for(var i=0;i<images.length;i++){
+						promises.push(this.loadImageWithObjectUrl(images[i], objectUrls[i]));
+					}
+					await Promise.all(promises);
 				}
 				async loadImage(image){
 					var cancellationToken = this.processor.getCancellationToken();
@@ -127,9 +152,15 @@
 				async loadImages(){
 					var start = +new Date();
 					var promises = [];
-					for(var i=0;i<this.images.length;i++){
-						promises.push(this.loadImage(this.images[i]));
+					var batchSize = 20;
+					var numberOfBatches = Math.ceil(this.images.length / batchSize);
+					for(var i=0;i<numberOfBatches;i++){
+						var batch = this.images.slice(i * batchSize, (i + 1) * batchSize);
+						promises.push(this.loadImageBatch(batch));
 					}
+					// for(var i=0;i<this.images.length;i++){
+					// 	promises.push(this.loadImage(this.images[i]));
+					// }
 					await Promise.all(promises);
 					console.log("loaded buffer images in "+(+new Date() - start)+" ms");
 				}
@@ -347,7 +378,7 @@
 				var images = [];
 				var currentCancellationToken = undefined;
 				var processorInitialized = false;
-				var cobwebProcessor = new ParallelProcessor(10, "("+(function(){
+				var cobwebProcessor = new ParallelProcessor(5, "("+(function(){
 					var height;
 					var drawForValue = async function(r){
 						var canvas = new OffscreenCanvas(height, height);
@@ -441,7 +472,7 @@
 					setSteps([]);
 
 					var createBuffer = function(startValue){
-						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 300);
+						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 600);
 					};
 					var reportBufferProgress = function(buffer){
 						var ratio = buffer.images.filter(function(i){return i.loaded;}).length / buffer.images.length;
@@ -458,7 +489,7 @@
 						var bufferLoadPromise = buffer.load();
 						nextBuffer.load();
 						await bufferLoadPromise;
-						await buffer.playInTime(ctx, 9000, onDisplayValue);
+						await buffer.playInTime(ctx, 18000, onDisplayValue);
 						buffer.discard();
 						play(nextBuffer);
 					};
