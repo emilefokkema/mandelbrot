@@ -1,18 +1,18 @@
 var ParallelProcessor = (function(){
-	var workerFn = function(transferResults){
+	var workerFn = function(){
 		var process = function(){};
 		var update = function(){};
-		var sendResult = function(result, id){
-			if(transferResults){
+		var sendResult = function(response, id){
+			if(response.transferable){
 				try{
-					postMessage({id: id, result: result}, [result]);
+					postMessage({id: id, result: response.result}, response.transferable);
 				}catch(e){
-					console.error("could not transfer object: ", result);
+					console.error("could not transfer objec(s): ", response.transferable);
 					throw new Error("Result is not Transferable");
 				}
 				
 			}else{
-				postMessage({id: id, result: result});
+				postMessage({id: id, result: response.result});
 			}
 		};
 		onmessage = function(e){
@@ -34,15 +34,16 @@ var ParallelProcessor = (function(){
 				}
 			}else if(data.request){
 				try{
-					var result = process(data.request.payload);
+					var response = {};
+					var result = process(data.request.payload, response);
 					if(result instanceof Promise){
-						result.then(function(resolvedResult){
-							sendResult(resolvedResult, data.request.id);
+						result.then(function(){
+							sendResult(response, data.request.id);
 						}, function(reason){
 							postMessage({id: data.request.id, error: reason});
 						});
 					}else{
-						sendResult(result, data.request.id);
+						sendResult(response, data.request.id);
 					}
 				}catch(e){
 					postMessage({id: data.request.id, error: e});
@@ -59,10 +60,9 @@ var ParallelProcessor = (function(){
 	};
 
 	class ParallelProcessorWorker{
-		constructor(instruction, transferResults){
+		constructor(instruction){
 			this.latestUpdateArgs = [];
 			this.instruction = instruction;
-			this.transferResults = transferResults;
 			this.createWorker();
 			this.busy = false;
 			this.latestRequestId = undefined;
@@ -75,7 +75,7 @@ var ParallelProcessor = (function(){
 		}
 		createWorker(){
 			var self = this;
-			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')('+this.transferResults+')'], {type: "application/javascript"})));
+			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')()'], {type: "application/javascript"})));
 			this.worker.onmessage = function(e){
 				var data = e.data;
 				if(data.instruction){
@@ -209,12 +209,11 @@ var ParallelProcessor = (function(){
 	}
 
 	return class ParallelProcessor{
-		constructor(threadCount, instruction, transferResults){
+		constructor(threadCount, instruction){
 			this.workers = [];
 			this.requests = [];
-			transferResults = transferResults === undefined ? true : !!transferResults;
 			for(var i=0;i<threadCount;i++){
-				this.workers.push(new ParallelProcessorWorker(instruction, transferResults));
+				this.workers.push(new ParallelProcessorWorker(instruction));
 			}
 		}
 		async update(){

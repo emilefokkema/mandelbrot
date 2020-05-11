@@ -97,7 +97,7 @@
 					}
 				}
 			};
-			process = function(req){
+			process = function(req, res){
 				var origX = req.origX, origY = req.origY;
 				var array = new Uint8ClampedArray(4 * size * size);
 				for(var tileY = 0;tileY < numberOfPixels; tileY+=1){
@@ -108,7 +108,8 @@
 						drawPixelWithColor(array, tileX, tileY, rgba);
 					}
 				}
-				return array.buffer;
+				res.result = array.buffer;
+				res.transferable = [array.buffer];
 			};
 
 			update = function(_size, _pixelSize, _scaleX, _scaleY, _maxIterations){

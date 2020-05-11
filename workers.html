@@ -52,17 +52,6 @@
 					this.discarded = false;
 				}
 				get loaded(){return !!this.image;}
-				loadImageFromObjectUrl(objectUrl){
-					var self = this;
-					var image = new Image();
-					return new Promise(function(resolve, reject){
-						image.addEventListener("load", function(){
-							self.image = image;
-							resolve();
-						});
-						image.src = objectUrl;
-					});
-				}
 				draw(ctx){
 					if(!this.image){
 						console.warn("image not present!");
@@ -80,7 +69,10 @@
 					for(var i=0;i<this.onDiscardedHandlers.length;i++){
 						this.onDiscardedHandlers[i]();
 					}
-					this.image = undefined;
+					if(this.image){
+						this.image.close();
+						this.image = undefined;
+					}
 					this.discarded = true;
 				}
 			}
@@ -105,18 +97,6 @@
 				onImageLoaded(onImageLoadedHandler){
 					this.onImageLoadedHandler = onImageLoadedHandler;
 				}
-				async loadImageWithObjectUrl(image, objectUrl){
-					if(image.discarded){
-						URL.revokeObjectURL(objectUrl);
-						return;
-					}
-					await image.loadImageFromObjectUrl(objectUrl);
-					URL.revokeObjectURL(objectUrl);
-					if(image.discarded){
-						return;
-					}
-					this.onImageLoadedHandler && this.onImageLoadedHandler(image);
-				}
 				async loadImageBatch(images){
 					var cancellationToken = this.processor.getCancellationToken();
 					var numberOfImagesToLoad = images.length;
@@ -127,27 +107,14 @@
 							}
 						});
 					}
-					var objectUrls = await this.processor.process({values: images.map(function(i){return i.value;})}, cancellationToken);
-					var promises = [];
+					var imageBitmaps = await this.processor.process({values: images.map(function(i){return i.value;})}, cancellationToken);
+					
 					for(var i=0;i<images.length;i++){
-						promises.push(this.loadImageWithObjectUrl(images[i], objectUrls[i]));
+						images[i].image = imageBitmaps[i];
+						if(!images[i].discarded){
+							this.onImageLoadedHandler && this.onImageLoadedHandler(images[i]);
+						}
 					}
-					await Promise.all(promises);
-				}
-				async loadImage(image){
-					var cancellationToken = this.processor.getCancellationToken();
-					image.onDiscarded(function(){cancellationToken.cancel();});
-					var objectUrl = await this.processor.process({r: image.value}, cancellationToken);
-					if(image.discarded){
-						URL.revokeObjectURL(objectUrl);
-						return;
-					}
-					await image.loadImageFromObjectUrl(objectUrl);
-					URL.revokeObjectURL(objectUrl);
-					if(image.discarded){
-						return;
-					}
-					this.onImageLoadedHandler && this.onImageLoadedHandler(image);
 				}
 				async loadImages(){
 					var start = +new Date();
@@ -158,9 +125,6 @@
 						var batch = this.images.slice(i * batchSize, (i + 1) * batchSize);
 						promises.push(this.loadImageBatch(batch));
 					}
-					// for(var i=0;i<this.images.length;i++){
-					// 	promises.push(this.loadImage(this.images[i]));
-					// }
 					await Promise.all(promises);
 					console.log("loaded buffer images in "+(+new Date() - start)+" ms");
 				}
@@ -408,16 +372,23 @@
 							counter++;
 						}
 						var blob = await canvas.convertToBlob({type: "image/jpeg", quality: 1});
-						return URL.createObjectURL(blob);
+						return createImageBitmap(blob);
 					};
-					process = function(req){
+					var addToResult = async function(value, res, index){
+						var bitmap = await drawForValue(value);
+						res.result[index] = bitmap;
+						res.transferable[index] = bitmap;
+					};
+					process = function(req, res){
 						var values = req.values;
-						return Promise.all(values.map(function(v){return drawForValue(v);}));
+						res.transferable = new Array(values.length)
+						res.result =  new Array(values.length);
+						return Promise.all(values.map(function(v, i){return addToResult(v, res, i);}));
 					};
 					update = function(_height){
 						height = _height;
 					};
-				}).toString()+")()", false);
+				}).toString()+")()");
 
 				var drawWithValue = function(r){
 					currentlyDrawnValue = r;
@@ -558,12 +529,13 @@
 							counter++;
 						}
 					};
-					process = function(req){
+					process = function(req, res){
 						var array = new Uint8ClampedArray(4 * sliceWidth * height);
 						for(var x = 0; x < sliceWidth; x++){
 							drawPointsForX(req.x, x, array);
 						}
-						return array.buffer;
+						res.result = array.buffer;
+						res.transferable = [array.buffer];
 					};
 					update = function(_sliceWidth, _coordsMinX, _coordsMinY, _coordsMaxX, _coordsMaxY, _width, _height){
 						sliceWidth = _sliceWidth;
