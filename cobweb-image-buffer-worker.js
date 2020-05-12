@@ -2,7 +2,6 @@ var createPathToScript = function(scriptName){
 	return location.origin + location.pathname.replace(/[^/]*$/,scriptName);
 };
 importScripts(createPathToScript("parallel-processor.js"), createPathToScript("cobweb-images.js"));
-var processor = new ParallelProcessor(2, createPathToScript("cobweb-processor.js"));
 
 var imageSet = undefined;
 var sendProgressUpdate = false;
@@ -46,7 +45,7 @@ var reportProgress = debounce(function(){
 var startSendingProgressUpdate = function(){
 	imageSet.onImageLoaded(reportProgress);
 };
-var loadImageSet = async function(_imageSet, imageHeight){
+var loadImageSet = async function(_imageSet, imageHeight, processor){
 	imageSet = _imageSet;
 	if(sendProgressUpdate){
 		startSendingProgressUpdate();
@@ -84,7 +83,8 @@ onmessage = function(e){
 	if(data.instruction){
 		var values = data.instruction.values;
 		var imageHeight = data.instruction.imageHeight;
-		loadImageSet(new CobwebImageSet(processor, values), imageHeight);
+		var processor = new ParallelProcessor(10, createPathToScript("cobweb-processor.js"));
+		loadImageSet(new CobwebImageSet(processor, values), imageHeight, processor);
 	}else if(data.sendProgressUpdate){
 		sendProgressUpdate = true;
 		if(imageSet){
