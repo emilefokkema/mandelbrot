@@ -2,10 +2,11 @@ var createPathToScript = function(scriptName){
 	return location.origin + location.pathname.replace(/[^/]*$/,scriptName);
 };
 importScripts(createPathToScript("parallel-processor.js"), createPathToScript("cobweb-images.js"));
-var processor = new ParallelProcessor(5, createPathToScript("cobweb-processor.js"));
+var processor = new ParallelProcessor(2, createPathToScript("cobweb-processor.js"));
 
 var imageSet = undefined;
 var sendProgressUpdate = false;
+var playing = false;
 
 var startSendingProgressUpdate = function(){
 	imageSet.onImageLoaded(function(){
@@ -31,18 +32,28 @@ var discard = function(){
 var playInTime = async function(context, nrOfMilliseconds){
 	var currentTime = +new Date();
 	var endTime = currentTime + nrOfMilliseconds;
-	while(currentTime < endTime){
-		var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
-		var imageIndex = Math.floor(imageSet.images.length * ratio);
-		imageSet.images[imageIndex].draw(context);
-		//onDisplayValue && onDisplayValue(this.images[imageIndex].value);
-		await new Promise(function(res){requestAnimationFrame(res);});
-		currentTime = +new Date();
+	playing = true;
+	for(var i=0;i<imageSet.images.length;i++){
+		imageSet.images[i].draw(context);
+		await new Promise(function(res){setTimeout(res, 30)});
 	}
+	// while(currentTime < endTime){
+	// 	var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
+	// 	var imageIndex = Math.floor(imageSet.images.length * ratio);
+	// 	imageSet.images[imageIndex].draw(context);
+	// 	//onDisplayValue && onDisplayValue(this.images[imageIndex].value);
+	// 	await new Promise(function(res){requestAnimationFrame(res);});
+	// 	currentTime = +new Date();
+	// }
+	playing = false;
 	postMessage({donePlaying: true});
 };
 onmessage = function(e){
+	console.log("buffer worker receives message: ", e.data);
 	var data = e.data;
+	if(playing){
+		console.warn("received message while playing!", data)
+	}
 	if(data.instruction){
 		var values = data.instruction.values;
 		var imageHeight = data.instruction.imageHeight;
@@ -52,6 +63,7 @@ onmessage = function(e){
 		if(imageSet){
 			startSendingProgressUpdate();
 		}
+		postMessage({startedSendingProgressUpdate: true});
 	}else if(data.play){
 		playInTime(data.play.canvas.getContext("2d"), data.play.nrOfMilliseconds);
 	}else if(data.discard){

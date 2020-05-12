@@ -60,6 +60,7 @@
 					this.rejectLoadingPromise = undefined;
 					this.resolvePlayingPromise = undefined;
 					this.resolveDiscardingPromise = undefined;
+					this.resolveProgressHandlerAddingPromise = undefined;
 					this.loading = false;
 					this.onProgressHandler = undefined;
 					this.playing = false;
@@ -75,6 +76,8 @@
 						this.resolvePlayingPromise();
 					}else if(data.discarded){
 						this.resolveDiscardingPromise();
+					}else if(data.startedSendingProgressUpdate){
+						this.resolveProgressHandlerAddingPromise();
 					}
 				}
 				async playInTime(canvas, nrOfMilliseconds, onDisplayValue){
@@ -100,9 +103,12 @@
 					this.worker.terminate();
 					console.log("buffer discarded");
 				}
-				onProgress(handler){
+				addProgressHandler(handler){
+					var self = this;
+					var progressHandlerAddingPromise = new Promise(function(res){self.resolveProgressHandlerAddingPromise = res;})
 					this.onProgressHandler = handler;
 					this.worker.postMessage({sendProgressUpdate: true});
+					return progressHandlerAddingPromise;
 				}
 				createLoadingPromise(){
 					var self = this;
@@ -418,25 +424,29 @@
 						bifurcationDiagram.setMarkerAtValue(value);
 						valueDiv.innerText = "r = "+value
 					};
-					var play = async function(buffer){
+					var play = async function(buffer, count){
 						var nextBuffer = createBuffer(buffer.values[buffer.values.length - 1] + valueStep);
 						//reportBufferProgress(buffer);
-						buffer.onProgress(function(ratio){progress.setRatio(ratio);});
+						await buffer.addProgressHandler(function(ratio){progress.setRatio(ratio);});
 						var bufferLoadPromise = buffer.load();
 						nextBuffer.load();
 						await bufferLoadPromise;
+						
 						createCanvas();
 						await buffer.playInTime(canvas, 4500, onDisplayValue);
-						console.log("finished buffer playback");
-						buffer.discard();
-						play(nextBuffer);
+						await buffer.discard();
+						// if(count < 2){
+						// 	play(nextBuffer, count + 1);
+						// }
+						play(nextBuffer, count + 1);
+						
 					};
 					
 					var stop = function(){
 						console.log("stopping playback")
 					};
 					
-					play(createBuffer(currentlyDrawnValue));
+					play(createBuffer(currentlyDrawnValue), 0);
 					return {stop: stop};
 				};
 				return {
