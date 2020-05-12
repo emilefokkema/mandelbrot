@@ -1,6 +1,7 @@
 <html>
 	<head>
 		<script type="text/javascript" src="parallel-processor.js"></script>
+		<script type="text/javascript" src="cobweb-images.js"></script>
 		<style type="text/css">
 			body{padding:0px;margin:0px;overflow: hidden;}
 			#container{height:100%;}
@@ -44,93 +45,83 @@
 	
 	<script>
 		(function(){
-			class CobwebImage{
-				constructor(value){
-					this.value = value;
-					this.image = undefined;
-					this.onDiscardedHandlers = [];
-					this.discarded = false;
-				}
-				get loaded(){return !!this.image;}
-				draw(ctx){
-					if(!this.image){
-						console.warn("image not present!");
-						return;
-					}
-					ctx.drawImage(this.image, 0, 0);
-				}
-				onDiscarded(handler){
-					this.onDiscardedHandlers.push(handler);
-				}
-				discard(){
-					if(this.discarded){
-						return;
-					}
-					for(var i=0;i<this.onDiscardedHandlers.length;i++){
-						this.onDiscardedHandlers[i]();
-					}
-					if(this.image){
-						this.image.close();
-						this.image = undefined;
-					}
-					this.discarded = true;
-				}
-			}
-			class CobwebImageSet{
-				constructor(processor, values){
+			var createPathToScript = function(scriptName){
+				return window.location.origin + window.location.pathname.replace(/[^/]*$/,scriptName);
+			};
+			class OtherBuffer{
+				constructor(values, imageHeight){
 					var self = this;
-					this.images = values.map(function(v){
-						var image = new CobwebImage(v);
-						image.onDiscarded(function(){self.removeImage(image);});
-						return image;
-					});
-					this.onImageLoadedHandler = undefined;
+					this.values = values;
+					this.imageHeight = imageHeight;
+					this.worker = new Worker(createPathToScript("cobweb-image-buffer-worker.js"));
+					this.worker.onmessage = function(e){self.handleMessage(e.data);};
 					this._loadingPromise = undefined;
-					this.processor = processor;
+					this.resolveLoadingPromise = undefined;
+					this.rejectLoadingPromise = undefined;
+					this.resolvePlayingPromise = undefined;
+					this.resolveDiscardingPromise = undefined;
+					this.loading = false;
+					this.onProgressHandler = undefined;
+					this.playing = false;
 				}
-				removeImage(image){
-					var index = this.images.indexOf(image);
-					if(index > -1){
-						this.images.splice(index, 1);
+				handleMessage(data){
+					if(data.loaded){
+						this.loading = false;
+						this.resolveLoadingPromise();
+					}else if(data.progress){
+						this.onProgressHandler && this.onProgressHandler(data.progress.ratio);
+					}else if(data.donePlaying){
+						this.playing = false;
+						this.resolvePlayingPromise();
+					}else if(data.discarded){
+						this.resolveDiscardingPromise();
 					}
 				}
-				onImageLoaded(onImageLoadedHandler){
-					this.onImageLoadedHandler = onImageLoadedHandler;
-				}
-				async loadImageBatch(images){
-					var cancellationToken = this.processor.getCancellationToken();
-					var numberOfImagesToLoad = images.length;
-					for(var i=0;i<images.length;i++){
-						images[i].onDiscarded(function(){
-							if(--numberOfImagesToLoad <= 0){
-								cancellationToken.cancel();
-							}
-						});
-					}
-					var imageBitmaps = await this.processor.process({values: images.map(function(i){return i.value;})}, cancellationToken);
-					
-					for(var i=0;i<images.length;i++){
-						images[i].image = imageBitmaps[i];
-						if(!images[i].discarded){
-							this.onImageLoadedHandler && this.onImageLoadedHandler(images[i]);
+				async playInTime(canvas, nrOfMilliseconds, onDisplayValue){
+					var offscreenCanvas = canvas.transferControlToOffscreen();
+					var self = this;
+					this.playing = true;
+					var playingPromise = new Promise(function(res){
+						self.resolvePlayingPromise = res;
+					})
+					this.worker.postMessage({
+						play: {
+							canvas: offscreenCanvas,
+							nrOfMilliseconds: nrOfMilliseconds
 						}
-					}
+					}, [offscreenCanvas]);
+					await playingPromise;
 				}
-				async loadImages(){
-					var start = +new Date();
-					var promises = [];
-					var batchSize = 20;
-					var numberOfBatches = Math.ceil(this.images.length / batchSize);
-					for(var i=0;i<numberOfBatches;i++){
-						var batch = this.images.slice(i * batchSize, (i + 1) * batchSize);
-						promises.push(this.loadImageBatch(batch));
-					}
-					await Promise.all(promises);
-					console.log("loaded buffer images in "+(+new Date() - start)+" ms");
+				async discard(){
+					var self = this;
+					var discardingPromise = new Promise(function(res){self.resolveDiscardingPromise = res;});
+					this.worker.postMessage({discard: true});
+					await discardingPromise;
+					this.worker.terminate();
+					console.log("buffer discarded");
+				}
+				onProgress(handler){
+					this.onProgressHandler = handler;
+					this.worker.postMessage({sendProgressUpdate: true});
+				}
+				createLoadingPromise(){
+					var self = this;
+					this._loadingPromise = new Promise(function(res, rej){
+						self.resolveLoadingPromise = res;
+						self.rejectLoadingPromise = rej;
+					});
+					this.loading = true;
+					this.onProgressHandler && this.onProgressHandler(0);
+					this.worker.postMessage({
+						instruction: {
+							values: this.values,
+							imageHeight: this.imageHeight
+						}
+					});
 				}
 				load(){
 					if(!this._loadingPromise){
-						this._loadingPromise = this.loadImages();
+						this.createLoadingPromise();
 					}
 					return this._loadingPromise;
 				}
@@ -332,17 +323,36 @@
 			})();
 
 			cobweb = (function(){
-				var canvas = document.getElementById("cobweb");
+				var canvas;
+				var width, height;
+				var createCanvas = function(){
+					var oldCanvas = document.getElementById("cobweb");
+					var rect = oldCanvas.getBoundingClientRect();
+					var styleWidth = oldCanvas.style.width;
+					var styleHeight = oldCanvas.style.height;
+					width = rect.width * devicePixelRatio;
+					height = Math.ceil(rect.height * devicePixelRatio);
+					var parent = oldCanvas.parentElement;
+					canvas = document.createElement("canvas");
+					canvas.setAttribute("width", width);
+					canvas.setAttribute("height", height);
+					canvas.setAttribute("id", "cobweb");
+					canvas.style.width = styleWidth;
+					canvas.style.height = styleHeight;
+					parent.insertBefore(canvas, oldCanvas);
+					parent.removeChild(oldCanvas);
+				};
+				//var canvas = document.getElementById("cobweb");
+				createCanvas();
+				//var rect = canvas.getBoundingClientRect();
+				//var width = rect.width * devicePixelRatio, height = Math.ceil(rect.height * devicePixelRatio);
+				
 				var ctx = canvas.getContext("2d");
-				var rect = canvas.getBoundingClientRect();
-				var width = rect.width * devicePixelRatio, height = Math.ceil(rect.height * devicePixelRatio);
-				canvas.setAttribute("width", width);
-				canvas.setAttribute("height", height);
 				var currentlyDrawnValue;
 				var images = [];
 				var currentCancellationToken = undefined;
 				var processorInitialized = false;
-				var cobwebProcessor = new ParallelProcessor(5, window.location.origin + window.location.pathname.replace(/[^/]*$/,"cobweb-processor.js"));
+				var cobwebProcessor = new ParallelProcessor(5, createPathToScript("cobweb-processor.js"));
 
 				var drawWithValue = function(r){
 					currentlyDrawnValue = r;
@@ -397,7 +407,8 @@
 					setSteps([]);
 
 					var createBuffer = function(startValue){
-						return new CobwebImageBuffer(cobwebProcessor, startValue, valueStep, 600);
+						var values = Array.apply(null, new Array(150)).map(function(x, i){return startValue + i * valueStep;})
+						return new OtherBuffer(values, height);
 					};
 					var reportBufferProgress = function(buffer){
 						var ratio = buffer.images.filter(function(i){return i.loaded;}).length / buffer.images.length;
@@ -408,13 +419,15 @@
 						valueDiv.innerText = "r = "+value
 					};
 					var play = async function(buffer){
-						var nextBuffer = createBuffer(buffer.lastValue + valueStep);
-						reportBufferProgress(buffer);
-						buffer.onImageLoaded(function(){reportBufferProgress(buffer)});
+						var nextBuffer = createBuffer(buffer.values[buffer.values.length - 1] + valueStep);
+						//reportBufferProgress(buffer);
+						buffer.onProgress(function(ratio){progress.setRatio(ratio);});
 						var bufferLoadPromise = buffer.load();
 						nextBuffer.load();
 						await bufferLoadPromise;
-						await buffer.playInTime(ctx, 18000, onDisplayValue);
+						createCanvas();
+						await buffer.playInTime(canvas, 4500, onDisplayValue);
+						console.log("finished buffer playback");
 						buffer.discard();
 						play(nextBuffer);
 					};
@@ -422,6 +435,7 @@
 					var stop = function(){
 						console.log("stopping playback")
 					};
+					
 					play(createBuffer(currentlyDrawnValue));
 					return {stop: stop};
 				};
@@ -449,7 +463,7 @@
 				var coordsMinY = 0;
 				var coordsMaxY = 1;
 				var trailing = false;
-				var processor = new ParallelProcessor(4, window.location.origin + window.location.pathname.replace(/[^/]*$/,"bifurcation-diagram-processor.js"));
+				var processor = new ParallelProcessor(4, createPathToScript("bifurcation-diagram-processor.js"));
 
 				var drawSlice = async function(x, cancellationToken){
 					var buffer = await processor.process({x: x}, cancellationToken);
