@@ -69,6 +69,7 @@
 					if(data.loaded){
 						this.loading = false;
 						this.resolveLoadingPromise();
+						console.log("buffer finished loading")
 					}else if(data.progress){
 						this.onProgressHandler && this.onProgressHandler(data.progress.ratio);
 					}else if(data.donePlaying){
@@ -77,7 +78,7 @@
 					}else if(data.discarded){
 						this.resolveDiscardingPromise();
 					}else if(data.startedSendingProgressUpdate){
-						this.resolveProgressHandlerAddingPromise();
+						this.resolveProgressHandlerAddingPromise(data.ratio);
 					}
 				}
 				async playInTime(canvas, nrOfMilliseconds, onDisplayValue){
@@ -103,12 +104,13 @@
 					this.worker.terminate();
 					console.log("buffer discarded");
 				}
-				addProgressHandler(handler){
+				async addProgressHandler(handler){
 					var self = this;
 					var progressHandlerAddingPromise = new Promise(function(res){self.resolveProgressHandlerAddingPromise = res;})
 					this.onProgressHandler = handler;
 					this.worker.postMessage({sendProgressUpdate: true});
-					return progressHandlerAddingPromise;
+					var ratio = await progressHandlerAddingPromise;
+					handler(ratio);
 				}
 				createLoadingPromise(){
 					var self = this;
@@ -124,6 +126,7 @@
 							imageHeight: this.imageHeight
 						}
 					});
+					console.log("buffer started loading");
 				}
 				load(){
 					if(!this._loadingPromise){
@@ -413,7 +416,7 @@
 					setSteps([]);
 
 					var createBuffer = function(startValue){
-						var values = Array.apply(null, new Array(150)).map(function(x, i){return startValue + i * valueStep;})
+						var values = Array.apply(null, new Array(300)).map(function(x, i){return startValue + i * valueStep;})
 						return new OtherBuffer(values, height);
 					};
 					var reportBufferProgress = function(buffer){
@@ -427,15 +430,21 @@
 					var play = async function(buffer, count){
 						var nextBuffer = createBuffer(buffer.values[buffer.values.length - 1] + valueStep);
 						//reportBufferProgress(buffer);
-						await buffer.addProgressHandler(function(ratio){progress.setRatio(ratio);});
+						await buffer.addProgressHandler(function(ratio){
+							progress.setRatio(ratio);
+							if(ratio > 0.5){
+								nextBuffer.load();
+							}
+						});
 						var bufferLoadPromise = buffer.load();
-						nextBuffer.load();
+						//setTimeout(function(){nextBuffer.load();}, 2000);
+						//nextBuffer.load();
 						await bufferLoadPromise;
 						
 						createCanvas();
-						await buffer.playInTime(canvas, 4500, onDisplayValue);
+						await buffer.playInTime(canvas, 9000, onDisplayValue);
 						await buffer.discard();
-						// if(count < 2){
+						// if(count < 1){
 						// 	play(nextBuffer, count + 1);
 						// }
 						play(nextBuffer, count + 1);

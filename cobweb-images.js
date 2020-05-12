@@ -38,7 +38,7 @@ class CobwebImageSet{
 			image.onDiscarded(function(){self.removeImage(image);});
 			return image;
 		});
-		this.onImageLoadedHandler = undefined;
+		this.onImageLoadedHandlers = [];
 		this._loadingPromise = undefined;
 		this.processor = processor;
 	}
@@ -49,7 +49,12 @@ class CobwebImageSet{
 		}
 	}
 	onImageLoaded(onImageLoadedHandler){
-		this.onImageLoadedHandler = onImageLoadedHandler;
+		this.onImageLoadedHandlers.push(onImageLoadedHandler);
+	}
+	handleImageLoaded(image){
+		for(var i=0;i<this.onImageLoadedHandlers.length;i++){
+			this.onImageLoadedHandlers[i](image);
+		}
 	}
 	async loadImageBatch(images){
 		var cancellationToken = this.processor.getCancellationToken();
@@ -66,21 +71,19 @@ class CobwebImageSet{
 		for(var i=0;i<images.length;i++){
 			images[i].image = imageBitmaps[i];
 			if(!images[i].discarded){
-				this.onImageLoadedHandler && this.onImageLoadedHandler(images[i]);
+				this.handleImageLoaded(images[i]);
 			}
 		}
 	}
 	async loadImages(){
-		var start = +new Date();
 		var promises = [];
-		var batchSize = 20;
+		var batchSize = 5;
 		var numberOfBatches = Math.ceil(this.images.length / batchSize);
 		for(var i=0;i<numberOfBatches;i++){
 			var batch = this.images.slice(i * batchSize, (i + 1) * batchSize);
 			promises.push(this.loadImageBatch(batch));
 		}
 		await Promise.all(promises);
-		console.log("loaded buffer images in "+(+new Date() - start)+" ms");
 	}
 	load(){
 		if(!this._loadingPromise){
