@@ -7,6 +7,23 @@ var imageSet = undefined;
 var sendProgressUpdate = false;
 var playing = false;
 
+class Timeout{
+	constructor(){
+		var self = this;
+		this.worker = new Worker(createPathToScript("timeout-worker.js"));
+		this.worker.onmessage = function(){
+			self.resolvePromise && self.resolvePromise();
+		};
+		this.resolvePromise = undefined;
+	}
+	fromMilliseconds(milliseconds){
+		var self = this;
+		var promise = new Promise(function(res){self.resolvePromise = res;});
+		this.worker.postMessage({milliseconds: milliseconds});
+		return promise;
+	}
+}
+var timeout = new Timeout();
 var debounce = function(f, timeout){
 	var latestArgs = undefined;
 	var called = false;
@@ -64,14 +81,18 @@ var playInTime = async function(context, nrOfMilliseconds){
 	var currentTime = +new Date();
 	var endTime = currentTime + nrOfMilliseconds;
 	playing = true;
-	while(currentTime < endTime){
-		var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
-		var imageIndex = Math.floor(imageSet.images.length * ratio);
-		imageSet.images[imageIndex].draw(context);
-		//onDisplayValue && onDisplayValue(this.images[imageIndex].value);
-		await new Promise(function(res){requestAnimationFrame(res);});
-		currentTime = +new Date();
+	for(var i=0;i<imageSet.images.length;i++){
+		imageSet.images[i].draw(context);
+		await timeout.fromMilliseconds(30);
 	}
+	// while(currentTime < endTime){
+	// 	var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
+	// 	var imageIndex = Math.floor(imageSet.images.length * ratio);
+	// 	imageSet.images[imageIndex].draw(context);
+	// 	//onDisplayValue && onDisplayValue(this.images[imageIndex].value);
+	// 	await new Promise(function(res){requestAnimationFrame(res);});
+	// 	currentTime = +new Date();
+	// }
 	playing = false;
 	postMessage({donePlaying: true});
 };
