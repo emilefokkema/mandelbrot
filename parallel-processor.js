@@ -1,7 +1,5 @@
 var ParallelProcessor = (function(){
 	var workerFn = function(){
-		var process = function(){};
-		var update = function(){};
 		var sendResult = function(response, id){
 			if(response.transferable){
 				try{
@@ -17,9 +15,9 @@ var ParallelProcessor = (function(){
 		};
 		onmessage = function(e){
 			var data = e.data;
-			if(data.instruction){
+			if(data.url){
 				try{
-					eval(data.instruction);
+					importScripts(data.url);
 					if(typeof process !== "function"){
 						postMessage({instructionError: "Cannot set 'process' to "+process+", which is not a function."});
 						return;
@@ -58,11 +56,11 @@ var ParallelProcessor = (function(){
 			}
 		};
 	};
-
+	var workerFnUrl = URL.createObjectURL(new Blob(['('+workerFn.toString()+')()'], {type: "application/javascript"}));
 	class ParallelProcessorWorker{
-		constructor(instruction){
+		constructor(url){
 			this.latestUpdateArgs = [];
-			this.instruction = instruction;
+			this.url = url;
 			this.createWorker();
 			this.busy = false;
 			this.latestRequestId = undefined;
@@ -75,7 +73,7 @@ var ParallelProcessor = (function(){
 		}
 		createWorker(){
 			var self = this;
-			this.worker = new Worker(URL.createObjectURL(new Blob(['('+workerFn.toString()+')()'], {type: "application/javascript"})));
+			this.worker = new Worker(workerFnUrl);
 			this.worker.onmessage = function(e){
 				var data = e.data;
 				if(data.instruction){
@@ -127,7 +125,6 @@ var ParallelProcessor = (function(){
 			});
 		}
 		cancelCurrentRequest(){
-			console.log("cancelling current request");
 			this.latestRequestId = undefined;
 			this.busy = false;
 			this.worker.terminate();
@@ -139,7 +136,7 @@ var ParallelProcessor = (function(){
 			}
 			this.settingInstruction = true;
 			var promise = this.getPromise();
-			this.worker.postMessage({instruction: this.instruction});
+			this.worker.postMessage({url: this.url});
 			await promise;
 			if(this.latestUpdateArgs.length > 0){
 				await this.sendLatestUpdateArgs();
@@ -209,11 +206,11 @@ var ParallelProcessor = (function(){
 	}
 
 	return class ParallelProcessor{
-		constructor(threadCount, instruction){
+		constructor(threadCount, url){
 			this.workers = [];
 			this.requests = [];
 			for(var i=0;i<threadCount;i++){
-				this.workers.push(new ParallelProcessorWorker(instruction));
+				this.workers.push(new ParallelProcessorWorker(url));
 			}
 		}
 		async update(){
