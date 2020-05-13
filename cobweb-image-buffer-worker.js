@@ -64,14 +64,18 @@ var playInTime = async function(context, nrOfMilliseconds){
 	var currentTime = +new Date();
 	var endTime = currentTime + nrOfMilliseconds;
 	playing = true;
-	while(currentTime < endTime){
-		var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
-		var imageIndex = Math.floor(imageSet.images.length * ratio);
-		imageSet.images[imageIndex].draw(context);
-		//onDisplayValue && onDisplayValue(this.images[imageIndex].value);
-		await new Promise(function(res){requestAnimationFrame(res);});
-		currentTime = +new Date();
+	for(var i=0;i<imageSet.images.length;i++){
+		imageSet.images[i].draw(context);
+		await new Promise(function(res){setTimeout(res, 30);})
 	}
+	// while(currentTime < endTime){
+	// 	var ratio = 1 - (endTime - currentTime) / nrOfMilliseconds;
+	// 	var imageIndex = Math.floor(imageSet.images.length * ratio);
+	// 	imageSet.images[imageIndex].draw(context);
+	// 	//onDisplayValue && onDisplayValue(this.images[imageIndex].value);
+	// 	await new Promise(function(res){requestAnimationFrame(res);});
+	// 	currentTime = +new Date();
+	// }
 	playing = false;
 	postMessage({donePlaying: true});
 };
