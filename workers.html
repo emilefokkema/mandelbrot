@@ -156,7 +156,7 @@
 					var updateSendingPromise = this.messageHandler.listenOnce(function(data){return data.startedSendingProgressUpdate;});
 					this.onProgressHandlers.push(handler);
 					this.worker.postMessage({sendProgressUpdate: true});
-					var ratio = await updateSendingPromise;
+					var ratio = (await updateSendingPromise).ratio;
 					if(this.loading){
 						this.onProgress(ratio);
 					}
@@ -493,9 +493,6 @@
 						console.log("adding progress handler to buffer");
 						var progressHandler = function(ratio){
 							progress.setRatio(ratio);
-							if(ratio > 0.5 && !nextBuffer.loading && !nextBuffer.loaded){
-								nextBuffer.startLoading(createValues(), height);
-							}
 						};
 						await buffer.addProgressHandler(progressHandler);
 						console.log("added progress handler to buffer");
@@ -505,6 +502,7 @@
 						}
 						var bufferLoadPromise = buffer.load();
 						await bufferLoadPromise;
+						nextBuffer.startLoading(createValues(), height);
 						console.log("buffer is done loading, remove progress handler");
 						await buffer.removeProgressHandler(progressHandler);
 						console.log("removed progress handler, start playing");
