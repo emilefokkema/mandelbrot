@@ -81,20 +81,14 @@ class CobwebImageSet{
 			}
 		}
 	}
-	async loadImages(){
+	async load(){
 		var promises = [];
-		var batchSize = 5;
+		var batchSize = 1;
 		var numberOfBatches = Math.ceil(this.images.length / batchSize);
 		for(var i=0;i<numberOfBatches;i++){
 			var batch = this.images.slice(i * batchSize, (i + 1) * batchSize);
 			promises.push(this.loadImageBatch(batch));
 		}
 		await Promise.all(promises);
-	}
-	load(){
-		if(!this._loadingPromise){
-			this._loadingPromise = this.loadImages();
-		}
-		return this._loadingPromise;
 	}
 }
