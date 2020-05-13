@@ -1,7 +1,7 @@
 var createPathToScript = function(scriptName){
 	return location.origin + location.pathname.replace(/[^/]*$/,scriptName);
 };
-importScripts(createPathToScript("parallel-processor.js"), createPathToScript("cobweb-images.js"));
+importScripts("parallel-processor.js", "cobweb-images.js");
 var processor = new ParallelProcessor(10, createPathToScript("cobweb-processor.js"));
 
 var imageSet = undefined;

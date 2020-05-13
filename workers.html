@@ -105,7 +105,7 @@
 			class OtherBuffer{
 				constructor(){
 					var self = this;
-					this.worker = new Worker(createPathToScript("cobweb-image-buffer-worker.js"));
+					this.worker = new Worker("cobweb-image-buffer-worker.js");
 					var messageHandler = new WorkerMessageHandler();
 					this.worker.onmessage = function(e){messageHandler.handleMessage(e);};
 					this.messageHandler = messageHandler;
