@@ -15,15 +15,18 @@
 
 		var value = 0.5;
 		var counter = 0;
-		ctx.strokeStyle = "rgba(0, 0, 0, 0.1)";
+		ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
 		ctx.lineWidth = 0.1;
-		while(counter < 40000){
-			ctx.beginPath();
-			ctx.moveTo(value * height, (1 - value) * height);
+		while(counter < 20000){
 			var newValue = r * value * (1 - value);
-			ctx.lineTo(value * height, (1 - newValue) * height);
-			ctx.lineTo(newValue * height, (1 - newValue) * height);
-			ctx.stroke();
+			if(counter > 5000){
+				ctx.beginPath();
+				ctx.moveTo(value * height, (1 - value) * height);
+				ctx.lineTo(value * height, (1 - newValue) * height);
+				ctx.lineTo(newValue * height, (1 - newValue) * height);
+				ctx.stroke();
+			}
+			
 			value = newValue;
 			//hue += 0.03;
 			counter++;
