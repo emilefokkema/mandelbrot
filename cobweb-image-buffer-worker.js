@@ -43,7 +43,10 @@ var reportProgress = debounce(function(){
 	postMessage({progress: {ratio: ratio}});
 }, 10);
 var startSendingProgressUpdate = function(){
-	imageSet.onImageLoaded(reportProgress);
+	imageSet.addImageLoadedHandler(reportProgress);
+};
+var stopSendingProgressUpdate = function(){
+	imageSet.removeImageLoadedHandler(reportProgress);
 };
 var loadImageSet = async function(_imageSet, imageHeight, processor){
 	imageSet = _imageSet;
@@ -65,6 +68,12 @@ var playInTime = async function(context, nrOfMilliseconds){
 	var endTime = currentTime + nrOfMilliseconds;
 	playing = true;
 	for(var i=0;i<imageSet.images.length;i++){
+		if(i===0){
+			console.log("start displaying at value ", imageSet.images[i].value)
+		}
+		if(i===imageSet.images.length - 1){
+			console.log("done displaying at value ", imageSet.images[i].value)
+		}
 		imageSet.images[i].draw(context);
 		await new Promise(function(res){setTimeout(res, 30);})
 	}
@@ -90,14 +99,24 @@ onmessage = function(e){
 		var processor = new ParallelProcessor(10, createPathToScript("cobweb-processor.js"));
 		loadImageSet(new CobwebImageSet(processor, values), imageHeight, processor);
 	}else if(data.sendProgressUpdate){
-		sendProgressUpdate = true;
-		if(imageSet){
-			startSendingProgressUpdate();
+		if(!sendProgressUpdate){
+			sendProgressUpdate = true;
+			if(imageSet){
+				startSendingProgressUpdate();
+			}
 		}
 		postMessage({startedSendingProgressUpdate: true, ratio: getProgress()});
 	}else if(data.play){
 		playInTime(data.play.canvas.getContext("2d"), data.play.nrOfMilliseconds);
 	}else if(data.discard){
 		discard();
+	}else if(data.stopSendingProgressUpdate){
+		if(sendProgressUpdate){
+			sendProgressUpdate = false;
+			if(imageSet){
+				stopSendingProgressUpdate();
+			}
+		}
+		postMessage({stoppedSendingProgressUpdate: true});
 	}
 };

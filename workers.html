@@ -48,46 +48,78 @@
 			var createPathToScript = function(scriptName){
 				return window.location.origin + window.location.pathname.replace(/[^/]*$/,scriptName);
 			};
-			class OtherBuffer{
-				constructor(values, imageHeight){
-					var self = this;
-					this.values = values;
-					this.imageHeight = imageHeight;
-					this.worker = new Worker(createPathToScript("cobweb-image-buffer-worker.js"));
-					this.worker.onmessage = function(e){self.handleMessage(e.data);};
-					this._loadingPromise = undefined;
-					this.resolveLoadingPromise = undefined;
-					this.rejectLoadingPromise = undefined;
-					this.resolvePlayingPromise = undefined;
-					this.resolveDiscardingPromise = undefined;
-					this.resolveProgressHandlerAddingPromise = undefined;
-					this.loading = false;
-					this.onProgressHandler = undefined;
-					this.playing = false;
+
+			class WorkerMessageHandler{
+				constructor(){
+					this.onceListeners = [];
+					this.continuousListeners = [];
 				}
-				handleMessage(data){
-					if(data.loaded){
-						this.loading = false;
-						this.resolveLoadingPromise();
-						console.log("buffer finished loading")
-					}else if(data.progress){
-						this.onProgressHandler && this.onProgressHandler(data.progress.ratio);
-					}else if(data.donePlaying){
-						this.playing = false;
-						this.resolvePlayingPromise();
-					}else if(data.discarded){
-						this.resolveDiscardingPromise();
-					}else if(data.startedSendingProgressUpdate){
-						this.resolveProgressHandlerAddingPromise(data.ratio);
+				removeOnceListener(listener){
+					var index = this.onceListeners.indexOf(listener);
+					if(index > -1){
+						this.onceListeners.splice(index, 1);
 					}
+				}
+				removeContinuousListener(listener){
+					var index = this.continuousListeners.findIndex(function(l){return l.handle === listener});
+					if(index > -1){
+						this.continuousListeners.splice(index);
+					}
+				}
+				addContinuousListener(matchFn, listener){
+					this.continuousListeners.push({
+						matches: matchFn,
+						handle: listener
+					});
+				}
+				listenOnce(matchFn){
+					var resolve;
+					var promise = new Promise(function(res){resolve = res;});
+					this.onceListeners.push({
+						matches: matchFn,
+						handle: resolve
+					});
+					return promise;
+				}
+				handleMessage(e){
+					var data = e.data;
+					var onceListeners = this.onceListeners.slice();
+					for(var i=0;i<onceListeners.length;i++){
+						var onceListener = onceListeners[i];
+						if(!onceListener.matches(data)){
+							continue;
+						}
+						this.removeOnceListener(onceListener);
+						onceListener.handle(data);
+					}
+					for(var i=0;i<this.continuousListeners.length;i++){
+						var continuousListener = this.continuousListeners[i];
+						if(!continuousListener.matches(data)){
+							continue;
+						}
+						continuousListener.handle(data);
+					}
+				}
+			}
+			var bufferCounter = 0;
+			class OtherBuffer{
+				constructor(){
+					var self = this;
+					this.worker = new Worker(createPathToScript("cobweb-image-buffer-worker.js"));
+					var messageHandler = new WorkerMessageHandler();
+					this.worker.onmessage = function(e){messageHandler.handleMessage(e);};
+					this.messageHandler = messageHandler;
+					this._loadingPromise = undefined;
+					this.loading = false;
+					this.onProgressHandlers = [];
+					this.playing = false;
+					this.id = bufferCounter++;
+					this.loaded = false;
 				}
 				async playInTime(canvas, nrOfMilliseconds, onDisplayValue){
 					var offscreenCanvas = canvas.transferControlToOffscreen();
-					var self = this;
 					this.playing = true;
-					var playingPromise = new Promise(function(res){
-						self.resolvePlayingPromise = res;
-					})
+					var playingPromise = this.messageHandler.listenOnce(function(data){return data.donePlaying;});
 					this.worker.postMessage({
 						play: {
 							canvas: offscreenCanvas,
@@ -95,44 +127,75 @@
 						}
 					}, [offscreenCanvas]);
 					await playingPromise;
+					this.playing = false;
 				}
 				async discard(){
-					var self = this;
-					var discardingPromise = new Promise(function(res){self.resolveDiscardingPromise = res;});
+					var discardingPromise = this.messageHandler.listenOnce(function(data){return data.discarded;});
 					this.worker.postMessage({discard: true});
 					await discardingPromise;
 					this.worker.terminate();
-					console.log("buffer discarded");
+				}
+				onProgress(ratio){
+					for(var i=0;i<this.onProgressHandlers.length;i++){
+						this.onProgressHandlers[i](ratio);
+					}
+				}
+				async removeProgressHandler(handler){
+					var index = this.onProgressHandlers.indexOf(handler);
+					if(index === -1){
+						return;
+					}
+					this.onProgressHandlers.splice(index, 1);
+					if(this.onProgressHandlers.length === 0){
+						var stopSendingPromise = this.messageHandler.listenOnce(function(data){return data.stoppedSendingProgressUpdate;});
+						this.worker.postMessage({stopSendingProgressUpdate: true});
+						await stopSendingPromise;
+					}
 				}
 				async addProgressHandler(handler){
-					var self = this;
-					var progressHandlerAddingPromise = new Promise(function(res){self.resolveProgressHandlerAddingPromise = res;})
-					this.onProgressHandler = handler;
+					var updateSendingPromise = this.messageHandler.listenOnce(function(data){return data.startedSendingProgressUpdate;});
+					this.onProgressHandlers.push(handler);
 					this.worker.postMessage({sendProgressUpdate: true});
-					var ratio = await progressHandlerAddingPromise;
-					handler(ratio);
+					var ratio = await updateSendingPromise;
+					if(this.loading){
+						this.onProgress(ratio);
+					}
 				}
-				createLoadingPromise(){
-					var self = this;
-					this._loadingPromise = new Promise(function(res, rej){
-						self.resolveLoadingPromise = res;
-						self.rejectLoadingPromise = rej;
-					});
+				startLoading(values, imageHeight){
+					if(this.loading){
+						return;
+					}
 					this.loading = true;
-					this.onProgressHandler && this.onProgressHandler(0);
+					console.log("buffer "+this.id+" starts loading with first value "+values[0]+" and last value "+values[values.length - 1]);
+					var self = this;
+					this._loadingPromise = this.createLoadingPromise(values, imageHeight).then(function(){self._loadingPromise = undefined;});
+				}
+				async createLoadingPromise(values, imageHeight){
+					var self = this;
+					var loaded = this.messageHandler.listenOnce(function(data){return data.loaded;});
+					this.onProgress(0);
+					var listener = function(data){self.onProgress(data.progress.ratio);};
+					this.messageHandler.addContinuousListener(function(data){return data.progress;}, listener);
 					this.worker.postMessage({
 						instruction: {
-							values: this.values,
-							imageHeight: this.imageHeight
+							values: values,
+							imageHeight: imageHeight
 						}
 					});
-					console.log("buffer started loading");
+					await loaded;
+					this.messageHandler.removeContinuousListener(listener);
+					this.onProgress(1);
+					this.loading = false;
+					this.loaded = true;
 				}
-				load(){
-					if(!this._loadingPromise){
-						this.createLoadingPromise();
+				async load(){
+					if(this.loaded){
+						return;
 					}
-					return this._loadingPromise;
+					if(!this._loadingPromise){
+						throw new Error("Cannot wait for loading to be ready, because buffer isn't loading")
+					}
+					await this._loadingPromise;
 				}
 			}
 			class CobwebImageBuffer extends CobwebImageSet{
@@ -402,7 +465,7 @@
 					for(var i=0;i<newImageSet.images.length;i++){
 						images.push(newImageSet.images[i]);
 					}
-					newImageSet.onImageLoaded(function(i){
+					newImageSet.addImageLoadedHandler(function(i){
 						reportNumberOfImagesLoaded();
 						if(currentlyDrawnValue === i.value){
 							i.draw(ctx);
@@ -412,50 +475,54 @@
 					newImageSet.load();
 				};
 				var startPlayback = function(valueStep){
-					console.log("starting playback with step " + valueStep)
 					setSteps([]);
-
-					var createBuffer = function(startValue){
-						var values = Array.apply(null, new Array(300)).map(function(x, i){return startValue + i * valueStep;})
-						return new OtherBuffer(values, height);
-					};
-					var reportBufferProgress = function(buffer){
-						var ratio = buffer.images.filter(function(i){return i.loaded;}).length / buffer.images.length;
-						progress.setRatio(ratio);
+					var latestValue = currentlyDrawnValue;
+					var bufferLength = 300;
+					var createValues = function(){
+						console.log("creating values");
+						var result = Array.apply(null, new Array(bufferLength)).map(function(x, i){return latestValue + i * valueStep;});
+						latestValue = result[result.length - 1];
+						return result;
 					};
 					var onDisplayValue = function(value){
 						bifurcationDiagram.setMarkerAtValue(value);
 						valueDiv.innerText = "r = "+value
 					};
 					var play = async function(buffer, count){
-						var nextBuffer = createBuffer(buffer.values[buffer.values.length - 1] + valueStep);
-						//reportBufferProgress(buffer);
-						await buffer.addProgressHandler(function(ratio){
+						var nextBuffer = new OtherBuffer();
+						console.log("adding progress handler to buffer");
+						var progressHandler = function(ratio){
 							progress.setRatio(ratio);
-							if(ratio > 0.5){
-								nextBuffer.load();
+							if(ratio > 0.5 && !nextBuffer.loading && !nextBuffer.loaded){
+								nextBuffer.startLoading(createValues(), height);
 							}
-						});
+						};
+						await buffer.addProgressHandler(progressHandler);
+						console.log("added progress handler to buffer");
+						if(!buffer.loading && !buffer.loaded){
+							console.log("current buffer ("+buffer.id+") is not yet loaded or loading")
+							buffer.startLoading(createValues(), height);
+						}
 						var bufferLoadPromise = buffer.load();
-						//setTimeout(function(){nextBuffer.load();}, 2000);
-						//nextBuffer.load();
 						await bufferLoadPromise;
-						
+						console.log("buffer is done loading, remove progress handler");
+						await buffer.removeProgressHandler(progressHandler);
+						console.log("removed progress handler, start playing");
 						createCanvas();
 						await buffer.playInTime(canvas, 9000, onDisplayValue);
+						console.log("buffer is done playing, discarding");
 						await buffer.discard();
-						// if(count < 1){
-						// 	play(nextBuffer, count + 1);
-						// }
-						play(nextBuffer, count + 1);
-						
+						console.log("buffer discarded");
+						if(count < 1){
+							play(nextBuffer, count + 1);
+						}
 					};
 					
 					var stop = function(){
 						console.log("stopping playback")
 					};
 					
-					play(createBuffer(currentlyDrawnValue), 0);
+					play(new OtherBuffer(), 0);
 					return {stop: stop};
 				};
 				return {

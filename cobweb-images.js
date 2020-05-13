@@ -48,8 +48,14 @@ class CobwebImageSet{
 			this.images.splice(index, 1);
 		}
 	}
-	onImageLoaded(onImageLoadedHandler){
+	addImageLoadedHandler(onImageLoadedHandler){
 		this.onImageLoadedHandlers.push(onImageLoadedHandler);
+	}
+	removeImageLoadedHandler(onImageLoadedHandler){
+		var index = this.onImageLoadedHandlers.indexOf(onImageLoadedHandler);
+		if(index > -1){
+			this.onImageLoadedHandlers.splice(index, 1);
+		}
 	}
 	handleImageLoaded(image){
 		for(var i=0;i<this.onImageLoadedHandlers.length;i++){
