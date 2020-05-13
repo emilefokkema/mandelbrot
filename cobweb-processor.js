@@ -1,8 +1,9 @@
 (function(){
 	var height;
+	var canvas;
+	var ctx;
 	var drawForValue = async function(r){
-		var canvas = new OffscreenCanvas(height, height);
-		var ctx = canvas.getContext("2d");
+		ctx.save();
 		ctx.fillStyle = "#fff";
 		ctx.fillRect(0, 0, height, height);
 		ctx.beginPath();
@@ -27,6 +28,7 @@
 			//hue += 0.03;
 			counter++;
 		}
+		ctx.restore();
 		var blob = await canvas.convertToBlob({type: "image/jpeg", quality: 1});
 		return createImageBitmap(blob);
 	};
@@ -43,5 +45,7 @@
 	};
 	update = function(_height){
 		height = _height;
+		canvas = new OffscreenCanvas(height, height);
+		ctx = canvas.getContext("2d");
 	};
 })();

@@ -71,14 +71,16 @@ var playInTime = async function(context, nrOfMilliseconds){
 	var currentTime = +new Date();
 	var endTime = currentTime + nrOfMilliseconds;
 	playing = true;
-	for(var i=0;i<imageSet.images.length;i++){
+	var images = imageSet.images.slice();
+	for(var i=0;i<images.length;i++){
 		if(i===0){
-			console.log("start displaying at value ", imageSet.images[i].value)
+			console.log("start displaying at value ", images[i].value)
 		}
-		if(i===imageSet.images.length - 1){
-			console.log("done displaying at value ", imageSet.images[i].value)
+		if(i===images.length - 1){
+			console.log("done displaying at value ", images[i].value)
 		}
-		imageSet.images[i].draw(context);
+		images[i].draw(context);
+		images[i].discard();
 		await new Promise(function(res){setTimeout(res, 30);})
 	}
 	// while(currentTime < endTime){
