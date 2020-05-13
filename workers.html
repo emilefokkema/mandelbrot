@@ -133,7 +133,8 @@
 					var discardingPromise = this.messageHandler.listenOnce(function(data){return data.discarded;});
 					this.worker.postMessage({discard: true});
 					await discardingPromise;
-					this.worker.terminate();
+					this.loaded = false;
+					//this.worker.terminate();
 				}
 				onProgress(ratio){
 					for(var i=0;i<this.onProgressHandlers.length;i++){
@@ -477,7 +478,9 @@
 				var startPlayback = function(valueStep){
 					setSteps([]);
 					var latestValue = currentlyDrawnValue;
-					var bufferLength = 300;
+					var bufferLength = 500;
+					var bufferOne = new OtherBuffer();
+					var bufferTwo = new OtherBuffer();
 					var createValues = function(){
 						console.log("creating values");
 						var result = Array.apply(null, new Array(bufferLength)).map(function(x, i){return latestValue + i * valueStep;});
@@ -488,8 +491,7 @@
 						bifurcationDiagram.setMarkerAtValue(value);
 						valueDiv.innerText = "r = "+value
 					};
-					var play = async function(buffer, count){
-						var nextBuffer = new OtherBuffer();
+					var play = async function(buffer, nextBuffer, count){
 						console.log("adding progress handler to buffer");
 						var progressHandler = function(ratio){
 							progress.setRatio(ratio);
@@ -511,16 +513,17 @@
 						console.log("buffer is done playing, discarding");
 						await buffer.discard();
 						console.log("buffer discarded");
-						if(count < 1){
-							play(nextBuffer, count + 1);
-						}
+						// if(count < 1){
+						// 	play(nextBuffer, buffer, count + 1);
+						// }
+						play(nextBuffer, buffer, count + 1);
 					};
 					
 					var stop = function(){
 						console.log("stopping playback")
 					};
 					
-					play(new OtherBuffer(), 0);
+					play(bufferOne, bufferTwo, 0);
 					return {stop: stop};
 				};
 				return {

@@ -2,6 +2,7 @@ var createPathToScript = function(scriptName){
 	return location.origin + location.pathname.replace(/[^/]*$/,scriptName);
 };
 importScripts(createPathToScript("parallel-processor.js"), createPathToScript("cobweb-images.js"));
+var processor = new ParallelProcessor(10, createPathToScript("cobweb-processor.js"));
 
 var imageSet = undefined;
 var sendProgressUpdate = false;
@@ -61,6 +62,9 @@ var discard = function(){
 	for(var i=0;i<imageSet.images.length;i++){
 		imageSet.images[i].discard();
 	}
+	stopSendingProgressUpdate();
+	sendProgressUpdate = false;
+	imageSet = undefined;
 	postMessage({discarded: true});
 };
 var playInTime = async function(context, nrOfMilliseconds){
@@ -96,7 +100,7 @@ onmessage = function(e){
 	if(data.instruction){
 		var values = data.instruction.values;
 		var imageHeight = data.instruction.imageHeight;
-		var processor = new ParallelProcessor(10, createPathToScript("cobweb-processor.js"));
+		
 		loadImageSet(new CobwebImageSet(processor, values), imageHeight, processor);
 	}else if(data.sendProgressUpdate){
 		if(!sendProgressUpdate){

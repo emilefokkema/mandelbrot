@@ -83,7 +83,7 @@ class CobwebImageSet{
 	}
 	async load(){
 		var promises = [];
-		var batchSize = 1;
+		var batchSize = 20;
 		var numberOfBatches = Math.ceil(this.images.length / batchSize);
 		for(var i=0;i<numberOfBatches;i++){
 			var batch = this.images.slice(i * batchSize, (i + 1) * batchSize);
