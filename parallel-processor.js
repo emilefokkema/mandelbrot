@@ -60,7 +60,7 @@ var ParallelProcessor = (function(){
 	class ParallelProcessorWorker{
 		constructor(url){
 			this.latestUpdateArgs = [];
-			this.url = url;
+			this.url = new URL(url, location.href).toString();
 			this.createWorker();
 			this.busy = false;
 			this.latestRequestId = undefined;

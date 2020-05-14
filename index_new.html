@@ -17,7 +17,7 @@
 		canvas.setAttribute("width", width);
 		canvas.setAttribute("height", height);
 		var context = canvas.getContext("2d");
-		var processor = new ParallelProcessor(navigator.hardwareConcurrency, window.location.origin + window.location.pathname.replace(/[^/]*$/,"mandelbrot-processor.js"));
+		var processor = new ParallelProcessor(navigator.hardwareConcurrency, "mandelbrot-processor.js");
 		var currentCancellationToken = processor.getCancellationToken();
 		var centerX = 0;
 		var centerY = 0;

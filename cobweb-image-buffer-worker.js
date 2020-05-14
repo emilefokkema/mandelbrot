@@ -1,8 +1,5 @@
-var createPathToScript = function(scriptName){
-	return location.origin + location.pathname.replace(/[^/]*$/,scriptName);
-};
 importScripts("parallel-processor.js", "cobweb-images.js");
-var processor = new ParallelProcessor(10, createPathToScript("cobweb-processor.js"));
+var processor = new ParallelProcessor(10, "cobweb-processor.js");
 
 var imageSet = undefined;
 var sendProgressUpdate = false;

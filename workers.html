@@ -45,9 +45,6 @@
 	
 	<script>
 		(function(){
-			var createPathToScript = function(scriptName){
-				return window.location.origin + window.location.pathname.replace(/[^/]*$/,scriptName);
-			};
 
 			class WorkerMessageHandler{
 				constructor(){
@@ -425,7 +422,7 @@
 				var images = [];
 				var currentCancellationToken = undefined;
 				var processorInitialized = false;
-				var cobwebProcessor = new ParallelProcessor(5, createPathToScript("cobweb-processor.js"));
+				var cobwebProcessor = new ParallelProcessor(5, "cobweb-processor.js");
 
 				var drawWithValue = function(r){
 					currentlyDrawnValue = r;
@@ -550,7 +547,7 @@
 				var coordsMinY = 0;
 				var coordsMaxY = 1;
 				var trailing = false;
-				var processor = new ParallelProcessor(4, createPathToScript("bifurcation-diagram-processor.js"));
+				var processor = new ParallelProcessor(4, "bifurcation-diagram-processor.js");
 
 				var drawSlice = async function(x, cancellationToken){
 					var buffer = await processor.process({x: x}, cancellationToken);
