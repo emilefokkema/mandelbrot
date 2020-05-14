@@ -56,9 +56,7 @@ var loadImageSet = async function(_imageSet, imageHeight, processor){
 	postMessage({loaded: true});
 };
 var discard = function(){
-	for(var i=0;i<imageSet.images.length;i++){
-		imageSet.images[i].discard();
-	}
+	imageSet.discardAll();
 	stopSendingProgressUpdate();
 	sendProgressUpdate = false;
 	imageSet = undefined;
@@ -121,5 +119,10 @@ onmessage = function(e){
 			}
 		}
 		postMessage({stoppedSendingProgressUpdate: true});
+	}else if(data.destroy){
+		if(imageSet){
+			imageSet.discardAll();
+		}
+		postMessage({destroyed: true});
 	}
 };

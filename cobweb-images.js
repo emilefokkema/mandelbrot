@@ -42,6 +42,12 @@ class CobwebImageSet{
 		this._loadingPromise = undefined;
 		this.processor = processor;
 	}
+	discardAll(){
+		var images = this.images.slice();
+		for(var i=0;i<images.length;i++){
+			images[i].discard();
+		}
+	}
 	removeImage(image){
 		var index = this.images.indexOf(image);
 		if(index > -1){

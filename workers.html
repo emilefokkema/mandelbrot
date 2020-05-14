@@ -131,7 +131,12 @@
 					this.worker.postMessage({discard: true});
 					await discardingPromise;
 					this.loaded = false;
-					//this.worker.terminate();
+				}
+				async destroy(){
+					var destroyPromise = this.messageHandler.listenOnce(function(data){return data.destroyed});
+					this.worker.postMessage({destroy: true});
+					await destroyPromise
+					this.worker.terminate();
 				}
 				onProgress(ratio){
 					for(var i=0;i<this.onProgressHandlers.length;i++){
@@ -394,7 +399,9 @@
 
 			cobweb = (function(){
 				var canvas;
+				var ctx;
 				var width, height;
+				var canvasAttached;
 				var createCanvas = function(){
 					var oldCanvas = document.getElementById("cobweb");
 					var rect = oldCanvas.getBoundingClientRect();
@@ -404,6 +411,7 @@
 					height = Math.ceil(rect.height * devicePixelRatio);
 					var parent = oldCanvas.parentElement;
 					canvas = document.createElement("canvas");
+					canvasAttached = false;
 					canvas.setAttribute("width", width);
 					canvas.setAttribute("height", height);
 					canvas.setAttribute("id", "cobweb");
@@ -412,12 +420,17 @@
 					parent.insertBefore(canvas, oldCanvas);
 					parent.removeChild(oldCanvas);
 				};
-				//var canvas = document.getElementById("cobweb");
-				createCanvas();
-				//var rect = canvas.getBoundingClientRect();
-				//var width = rect.width * devicePixelRatio, height = Math.ceil(rect.height * devicePixelRatio);
+
+				var attachCanvas = function(){
+					if(canvasAttached){
+						return;
+					}
+					createCanvas();
+					ctx = canvas.getContext("2d");
+					canvasAttached = true;
+				};
 				
-				var ctx = canvas.getContext("2d");
+				attachCanvas();
 				var currentlyDrawnValue;
 				var images = [];
 				var currentCancellationToken = undefined;
@@ -466,6 +479,7 @@
 					newImageSet.addImageLoadedHandler(function(i){
 						reportNumberOfImagesLoaded();
 						if(currentlyDrawnValue === i.value){
+							attachCanvas();
 							i.draw(ctx);
 						}
 					});
@@ -516,8 +530,9 @@
 						play(nextBuffer, buffer, count + 1);
 					};
 					
-					var stop = function(){
-						console.log("stopping playback")
+					var stop = async function(){
+						await Promise.all([bufferOne.destroy(), bufferTwo.destroy()]);
+						console.log("playback stopped")
 					};
 					
 					play(bufferOne, bufferTwo, 0);
