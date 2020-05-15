@@ -44,14 +44,14 @@ var ParallelProcessor = (function(){
 						sendResult(response, data.request.id);
 					}
 				}catch(e){
-					postMessage({id: data.request.id, error: e});
+					postMessage({id: data.request.id, error: e.toString()});
 				}
 			}else if(data.update){
 				try{
 					update.apply(null, data.update);
 					postMessage({update: true});
 				}catch(e){
-					postMessage({updateError: e});
+					postMessage({updateError: e.toString()});
 				}
 			}
 		};
@@ -143,11 +143,11 @@ var ParallelProcessor = (function(){
 			}
 			this.initialized = true;
 		}
-		async sendLatestUpdateArgs(){
+		sendLatestUpdateArgs(){
 			this.updating = true;
 			var promise = this.getPromise();
 			this.worker.postMessage({update: this.latestUpdateArgs});
-			await promise;
+			return promise;
 		}
 		async update(){
 			this.latestUpdateArgs = Array.prototype.slice.apply(arguments);
@@ -223,7 +223,12 @@ var ParallelProcessor = (function(){
 				var worker = this.workers[i];
 				promises.push(worker.update.apply(worker, args));
 			}
-			return Promise.all(promises);
+			try{
+				await Promise.all(promises);
+			}catch(e){
+				throw new Error("Error updating parallel processor: "+e);
+			}
+			
 		}
 		async processNext(){
 			this.requests = this.requests.filter(function(r){return !r.cancellationToken || !r.cancellationToken.cancelled;});
