@@ -1,0 +1,33 @@
+<html>
+	<head>
+		<title>WorkerWrapper</title>
+		
+	</head>
+<body>
+
+
+	
+	
+	<script>
+		(function(){
+			class WorkerWrapper{
+				constructor(url, channelConfig){
+
+				}
+			}
+			class FooBar extends WorkerWrapper{
+				constructor(url){
+					super("foo-bar.js", {
+						foo: {}
+					});
+				}
+				foo(){
+					return this.channels.foo();
+				}
+			}
+			var fooBar = new FooBar();
+			fooBar.foo().then(function(response){console.log(response);})
+		})()
+	</script>
+</body>
+</html>
